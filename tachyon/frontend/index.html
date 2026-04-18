@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnes Tachyon — Laboratorio</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #2a2a3a;
+    --accent: #8b5cf6;
+    --accent2: #c084fc;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --shadow-mode: #dc2626;
+    --eureka-mode: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #header h1 { font-size: 1rem; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  #status-bar { display: flex; gap: 10px; align-items: center; font-size: 0.78rem; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot-alive { background: var(--success); animation: pulse 2s infinite; }
+  .dot-dead { background: var(--danger); }
+  .dot-shadow { background: var(--shadow-mode); animation: pulse 1s infinite; }
+  .dot-listening { background: #f59e0b; animation: pulse 0.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  /* Neuro panel */
+  #neuro-panel {
+    display: flex; gap: 14px; padding: 6px 18px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    font-size: 0.72rem; color: var(--text-dim); overflow-x: auto; flex-shrink: 0;
+  }
+  .neuro-bar { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .neuro-bar .bar { width: 56px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .neuro-bar .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+  /* VAD indicator bar */
+  #vad-bar-wrap {
+    height: 4px; background: var(--border); flex-shrink: 0; display: none;
+    transition: opacity 0.3s;
+  }
+  #vad-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.05s linear; }
+  #vad-bar-wrap.active { display: block; }
+
+  /* Chat area */
+  #chat-area {
+    flex: 1; overflow-y: auto; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .message {
+    max-width: 82%; padding: 9px 13px; border-radius: 11px;
+    font-size: 0.92rem; line-height: 1.5; animation: fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .msg-user { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 3px; }
+  .msg-tachyon { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+  .msg-tachyon.shadow-mode { border-color: var(--shadow-mode); background: #1a0808; }
+  .msg-tachyon.eureka-mode { border-color: var(--eureka-mode); }
+  .msg-tachyon.tool-result { border-color: #22c55e44; background: #0a1a0a; font-family: monospace; font-size: 0.82rem; }
+  .msg-system { align-self: center; color: var(--text-dim); font-size: 0.78rem; font-style: italic; }
+
+  /* Input area */
+  #input-area {
+    display: flex; gap: 7px; padding: 10px 14px;
+    background: var(--surface); border-top: 1px solid var(--border);
+    align-items: flex-end; flex-shrink: 0;
+  }
+  #msg-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text);
+    font-size: 0.92rem; resize: none; outline: none;
+    max-height: 110px; min-height: 40px; font-family: inherit;
+  }
+  #msg-input:focus { border-color: var(--accent); }
+
+  button {
+    background: var(--accent); color: white; border: none;
+    border-radius: 8px; padding: 9px 14px; cursor: pointer;
+    font-size: 0.88rem; transition: all 0.2s;
+    display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  }
+  button:hover { background: var(--accent2); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  #mic-btn { width: 44px; height: 44px; border-radius: 50%; padding: 0; justify-content: center; font-size: 1.2rem; }
+  #mic-btn.recording { background: var(--danger); animation: pulse 0.7s infinite; }
+
+  #continuous-btn {
+    height: 44px; font-size: 0.8rem; padding: 0 12px;
+    background: #1e1e2e; border: 1px solid var(--border);
+  }
+  #continuous-btn.active {
+    background: #14532d; border-color: var(--success); color: #86efac;
+    animation: pulse 3s infinite;
+  }
+  #continuous-btn.listening {
+    background: #451a03; border-color: var(--eureka-mode); color: #fde68a;
+  }
+
+  #send-btn { min-width: 44px; height: 44px; justify-content: center; }
+
+  /* Thinking dots */
+  .thinking { display: flex; gap: 4px; padding: 6px 10px; }
+  .thinking span {
+    width: 7px; height: 7px; background: var(--accent);
+    border-radius: 50%; animation: bounce 1.3s ease-in-out infinite;
+  }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100% { transform:scale(0); } 40% { transform:scale(1); } }
+
+  #tts-player { display: none; }
+
+  /* Silence countdown ring */
+  #silence-ring {
+    position: fixed; bottom: 80px; right: 20px;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: conic-gradient(var(--accent) 0%, transparent 0%);
+    display: none; align-items: center; justify-content: center;
+    font-size: 0.7rem; color: var(--text-dim);
+    box-shadow: 0 0 12px #8b5cf644;
+  }
+  #silence-ring.visible { display: flex; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🔬 Agnes Tachyon</h1>
+  <div id="status-bar">
+    <span id="state-label">LABORATORIO_CAOS</span>
+    <span class="status-dot dot-alive" id="status-dot"></span>
+    <span id="connection-status">Conectando...</span>
+  </div>
+</div>
+
+<div id="neuro-panel">
+  <div class="neuro-bar"><span>DA</span><div class="bar"><div class="bar-fill" id="bar-dopamine" style="width:0%;background:#8b5cf6"></div></div></div>
+  <div class="neuro-bar"><span>Estrés</span><div class="bar"><div class="bar-fill" id="bar-stress" style="width:0%;background:#ef4444"></div></div></div>
+  <div class="neuro-bar"><span>Novedad</span><div class="bar"><div class="bar-fill" id="bar-novelty" style="width:0%;background:#f59e0b"></div></div></div>
+  <div class="neuro-bar"><span>Confianza</span><div class="bar"><div class="bar-fill" id="bar-trust" style="width:0%;background:#22c55e"></div></div></div>
+  <div class="neuro-bar"><span>Somático</span><div class="bar"><div class="bar-fill" id="bar-somatic" style="width:0%;background:#06b6d4"></div></div></div>
+</div>
+
+<div id="vad-bar-wrap"><div id="vad-bar"></div></div>
+
+<div id="chat-area">
+  <div class="message msg-system">Oya oya? Iniciando sistema nervioso central...</div>
+</div>
+
+<div id="input-area">
+  <textarea id="msg-input" rows="1" placeholder="Escribe o habla..."
+    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendText()}"></textarea>
+  <button id="continuous-btn" onclick="toggleContinuous()" title="Modo voz continua">🔁 Continuo</button>
+  <button id="mic-btn" onclick="togglePTT()" title="Push-to-talk">🎤</button>
+  <button id="send-btn" onclick="sendText()">➤</button>
+</div>
+
+<div id="silence-ring">...</div>
+<audio id="tts-player"></audio>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  AGNES TACHYON — Frontend con VAD Continuo
+// ═══════════════════════════════════════════════════════════════════
+
+const WS_URL = `ws://${location.hostname}:${location.port}/ws`;
+
+// ── State ────────────────────────────────────────────────────────
+let ws = null;
+let reconnectTimer = null;
+
+// PTT state
+let pttRecording = false;
+let pttMediaRecorder = null;
+let pttChunks = [];
+
+// Continuous mode state
+let continuousMode = false;
+let continuousStream = null;
+let continuousRecorder = null;
+let continuousChunks = [];
+let audioCtx = null;
+let analyser = null;
+let vadInterval = null;
+let silenceTimer = null;
+let isTTSPlaying = false;
+let isProcessing = false;  // waiting for Agnes to reply
+let continuousActive = false;  // actually recording a segment
+
+// Audio queue
+let audioQueue = [];
+let isPlaying = false;
+
+// VAD settings
+const SILENCE_THRESHOLD = 0.012;  // RMS threshold (0.0–1.0, tune if needed)
+const SILENCE_DURATION  = 1500;   // ms of silence before auto-send
+const MIN_SEGMENT_MS    = 600;    // ignore segments shorter than this
+let segmentStart = 0;
+
+// ── DOM ──────────────────────────────────────────────────────────
+const chatArea    = document.getElementById('chat-area');
+const msgInput    = document.getElementById('msg-input');
+const micBtn      = document.getElementById('mic-btn');
+const contBtn     = document.getElementById('continuous-btn');
+const statusDot   = document.getElementById('status-dot');
+const connStatus  = document.getElementById('connection-status');
+const stateLabel  = document.getElementById('state-label');
+const ttsPlayer   = document.getElementById('tts-player');
+const vadBarWrap  = document.getElementById('vad-bar-wrap');
+const vadBar      = document.getElementById('vad-bar');
+const silenceRing = document.getElementById('silence-ring');
+
+// ── WebSocket ────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    statusDot.className = 'status-dot dot-alive';
+    connStatus.textContent = 'En línea';
+    addSystem('Conexión establecida. El laboratorio está activo.');
+  };
+  ws.onclose = () => {
+    statusDot.className = 'status-dot dot-dead';
+    connStatus.textContent = 'Desconectada';
+    reconnectTimer = setTimeout(connect, 3000);
+  };
+  ws.onerror = () => { connStatus.textContent = 'Error'; };
+  ws.onmessage = (e) => handleMsg(JSON.parse(e.data));
+}
+
+function handleMsg(msg) {
+  document.querySelector('.thinking-wrapper')?.remove();
+
+  switch (msg.type) {
+    case 'response':
+      addTachyon(msg.response, msg.state, msg.neuro);
+      updateNeuro(msg.neuro);
+      updateState(msg.state);
+      isProcessing = false;
+      if (msg.audio_b64) {
+        playAudio(msg.audio_b64);
+      } else if (continuousMode) {
+        // No TTS → resume immediately
+        resumeContinuous();
+      }
+      break;
+
+    case 'transcription':
+      addUser(msg.text, true);
+      break;
+
+    case 'status':
+      if (msg.status === 'thinking')      showThinking();
+      else if (msg.status === 'no_speech') { isProcessing = false; resumeContinuous(); }
+      break;
+
+    case 'pong': break;
+  }
+}
+
+// ── Chat messages ────────────────────────────────────────────────
+function addUser(text, fromVoice = false) {
+  const d = el('div', 'message msg-user');
+  d.textContent = (fromVoice ? '🎤 ' : '') + text;
+  chatArea.appendChild(d); scroll();
+}
+
+function addTachyon(text, state, neuro) {
+  let cls = 'message msg-tachyon';
+  if (state === 'sombra_singularidad') cls += ' shadow-mode';
+  if (state === 'enfoque_analitico')   cls += ' eureka-mode';
+  if (text.includes('[EXEC_') || text.includes('[READ_FILE]') || text.includes('[WRITE_FILE]'))
+    cls += ' tool-result';
+  const d = el('div', cls);
+  d.textContent = text;
+  chatArea.appendChild(d); scroll();
+}
+
+function addSystem(text) {
+  const d = el('div', 'message msg-system');
+  d.textContent = text;
+  chatArea.appendChild(d); scroll();
+}
+
+function showThinking() {
+  const w = el('div', 'message msg-tachyon thinking-wrapper');
+  w.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
+  chatArea.appendChild(w); scroll();
+}
+
+function el(tag, cls) {
+  const d = document.createElement(tag);
+  d.className = cls;
+  return d;
+}
+
+function scroll() { chatArea.scrollTop = chatArea.scrollHeight; }
+
+// ── Neuro / State UI ─────────────────────────────────────────────
+function updateNeuro(n) {
+  if (!n) return;
+  setBar('bar-dopamine', n.dopamine_phasic);
+  setBar('bar-stress', n.stress);
+  setBar('bar-novelty', n.novelty);
+  setBar('bar-trust', n.trust);
+  setBar('bar-somatic', n.somatic);
+}
+function setBar(id, v) {
+  const e = document.getElementById(id);
+  if (e) e.style.width = Math.round(v * 100) + '%';
+}
+function updateState(state) {
+  stateLabel.textContent = state.toUpperCase().replace(/_/g, ' ');
+  statusDot.className = 'status-dot ' + (state === 'sombra_singularidad' ? 'dot-shadow' : 'dot-alive');
+}
+
+// ── Text send ────────────────────────────────────────────────────
+function sendText() {
+  const text = msgInput.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  addUser(text);
+  showThinking();
+  isProcessing = true;
+  ws.send(JSON.stringify({ type: 'text', content: text, voice: true }));
+  msgInput.value = '';
+  msgInput.style.height = 'auto';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PUSH-TO-TALK (botón 🎤, modo manual)
+// ═══════════════════════════════════════════════════════════════════
+async function togglePTT() {
+  if (continuousMode) { addSystem('Desactiva el modo Continuo primero.'); return; }
+  if (pttRecording) {
+    stopPTT();
+  } else {
+    await startPTT();
+  }
+}
+
+async function startPTT() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+    pttMediaRecorder = new MediaRecorder(stream, { mimeType: getSupportedMimeType() });
+    pttChunks = [];
+    pttMediaRecorder.ondataavailable = e => { if (e.data.size > 0) pttChunks.push(e.data); };
+    pttMediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      await sendAudioChunks(pttChunks, pttMediaRecorder.mimeType);
+    };
+    pttMediaRecorder.start();
+    pttRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹';
+  } catch (err) {
+    addSystem('Error micrófono: ' + err.message);
+  }
+}
+
+function stopPTT() {
+  if (pttMediaRecorder?.state !== 'inactive') pttMediaRecorder.stop();
+  pttRecording = false;
+  micBtn.classList.remove('recording');
+  micBtn.textContent = '🎤';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODO CONTINUO CON VAD (Voice Activity Detection)
+//  Flujo: escucha → detecta habla → silencio 1.5s → envía → espera TTS → repite
+// ═══════════════════════════════════════════════════════════════════
+async function toggleContinuous() {
+  if (continuousMode) {
+    stopContinuous();
+  } else {
+    await startContinuous();
+  }
+}
+
+async function startContinuous() {
+  try {
+    continuousStream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+  } catch (err) {
+    addSystem('Error micrófono: ' + err.message);
+    return;
+  }
+
+  // Web Audio for VAD
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const source = audioCtx.createMediaStreamSource(continuousStream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+
+  continuousMode = true;
+  contBtn.textContent = '🟢 Continuo ON';
+  contBtn.className = 'active';
+  vadBarWrap.classList.add('active');
+  micBtn.disabled = true;
+  addSystem('🎙️ Modo continuo activado — Agnes te escucha siempre.');
+
+  startContinuousSegment();
+}
+
+function startContinuousSegment() {
+  if (!continuousMode || isTTSPlaying || isProcessing) return;
+
+  continuousChunks = [];
+  segmentStart = Date.now();
+
+  continuousRecorder = new MediaRecorder(continuousStream, { mimeType: getSupportedMimeType() });
+  continuousRecorder.ondataavailable = e => { if (e.data.size > 0) continuousChunks.push(e.data); };
+  continuousRecorder.onstop = async () => {
+    const duration = Date.now() - segmentStart;
+    if (duration >= MIN_SEGMENT_MS && continuousChunks.length > 0 && !isTTSPlaying) {
+      isProcessing = true;
+      continuousActive = false;
+      await sendAudioChunks(continuousChunks, continuousRecorder.mimeType);
+    } else {
+      // Too short or TTS started — discard, resume
+      continuousActive = false;
+      if (!isTTSPlaying && !isProcessing) {
+        setTimeout(startContinuousSegment, 200);
+      }
+    }
+  };
+  continuousRecorder.start(100);
+  continuousActive = true;
+  contBtn.className = 'active listening';
+
+  // VAD monitoring
+  clearInterval(vadInterval);
+  clearTimeout(silenceTimer);
+  let hadSpeech = false;
+
+  vadInterval = setInterval(() => {
+    if (!continuousMode || isTTSPlaying || isProcessing) return;
+
+    const buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+
+    // Update VAD bar
+    vadBar.style.width = Math.min(100, rms * 2000) + '%';
+
+    if (rms > SILENCE_THRESHOLD) {
+      hadSpeech = true;
+      clearTimeout(silenceTimer);
+      silenceRing.classList.remove('visible');
+      contBtn.className = 'active listening';
+    } else if (hadSpeech) {
+      // Silence after speech detected
+      if (!silenceTimer) {
+        let elapsed = 0;
+        silenceRing.classList.add('visible');
+        const ringUpdate = setInterval(() => {
+          elapsed += 80;
+          const pct = (elapsed / SILENCE_DURATION) * 100;
+          silenceRing.style.background =
+            `conic-gradient(var(--accent) ${pct}%, transparent ${pct}%)`;
+          silenceRing.textContent = ((SILENCE_DURATION - elapsed) / 1000).toFixed(1) + 's';
+          if (elapsed >= SILENCE_DURATION) clearInterval(ringUpdate);
+        }, 80);
+
+        silenceTimer = setTimeout(() => {
+          silenceTimer = null;
+          silenceRing.classList.remove('visible');
+          contBtn.className = 'active';
+          if (continuousRecorder?.state === 'recording') {
+            continuousRecorder.stop();
+          }
+        }, SILENCE_DURATION);
+      }
+    }
+  }, 80);
+}
+
+function resumeContinuous() {
+  if (!continuousMode) return;
+  setTimeout(() => {
+    if (continuousMode && !isTTSPlaying && !isProcessing) {
+      clearInterval(vadInterval);
+      clearTimeout(silenceTimer);
+      silenceTimer = null;
+      startContinuousSegment();
+    }
+  }, 300);
+}
+
+function stopContinuous() {
+  clearInterval(vadInterval);
+  clearTimeout(silenceTimer);
+  silenceTimer = null;
+  continuousMode = false;
+  continuousActive = false;
+
+  if (continuousRecorder?.state === 'recording') continuousRecorder.stop();
+  if (continuousStream) continuousStream.getTracks().forEach(t => t.stop());
+  if (audioCtx) audioCtx.close();
+
+  continuousStream = null;
+  audioCtx = null;
+  analyser = null;
+
+  contBtn.textContent = '🔁 Continuo';
+  contBtn.className = '';
+  vadBarWrap.classList.remove('active');
+  vadBar.style.width = '0%';
+  silenceRing.classList.remove('visible');
+  micBtn.disabled = false;
+  addSystem('Modo continuo desactivado.');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AUDIO SENDING (común para PTT y Continuo)
+// ═══════════════════════════════════════════════════════════════════
+async function sendAudioChunks(chunks, mimeType) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    isProcessing = false;
+    resumeContinuous();
+    return;
+  }
+  const blob = new Blob(chunks, { type: mimeType });
+  const wavBlob = await convertToWav(blob);
+  const reader = new FileReader();
+  reader.onload = () => {
+    const b64 = reader.result.split(',')[1];
+    showThinking();
+    ws.send(JSON.stringify({ type: 'audio', audio: b64 }));
+  };
+  reader.readAsDataURL(wavBlob);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  WAV ENCODER (WebM → PCM 16-bit WAV)
+// ═══════════════════════════════════════════════════════════════════
+async function convertToWav(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const buf = await blob.arrayBuffer();
+  let audioBuf;
+  try { audioBuf = await ctx.decodeAudioData(buf); }
+  catch { ctx.close(); return blob; }
+
+  let samples = audioBuf.getChannelData(0);
+  if (audioBuf.sampleRate !== 16000) {
+    const ratio = 16000 / audioBuf.sampleRate;
+    const newLen = Math.round(samples.length * ratio);
+    const resampled = new Float32Array(newLen);
+    for (let i = 0; i < newLen; i++) {
+      const idx = i / ratio;
+      const lo = Math.floor(idx), hi = Math.min(lo + 1, samples.length - 1);
+      resampled[i] = samples[lo] * (1 - (idx - lo)) + samples[hi] * (idx - lo);
+    }
+    samples = resampled;
+  }
+
+  const dataLen = samples.length * 2;
+  const ab = new ArrayBuffer(44 + dataLen);
+  const v = new DataView(ab);
+  const ws2 = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws2(0,'RIFF'); v.setUint32(4, 36 + dataLen, true);
+  ws2(8,'WAVE'); ws2(12,'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  ws2(36,'data'); v.setUint32(40, dataLen, true);
+  let off = 44;
+  for (const s of samples) {
+    v.setInt16(off, Math.max(-1, Math.min(1, s)) * (s < 0 ? 0x8000 : 0x7FFF), true);
+    off += 2;
+  }
+  ctx.close();
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+function getSupportedMimeType() {
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TTS PLAYBACK — pausa el modo continuo mientras habla Agnes
+// ═══════════════════════════════════════════════════════════════════
+function playAudio(b64) {
+  audioQueue.push(b64);
+  if (!isPlaying) playNext();
+}
+
+function playNext() {
+  if (audioQueue.length === 0) {
+    isPlaying = false;
+    isTTSPlaying = false;
+    // Resume listening after Agnes finishes speaking
+    resumeContinuous();
+    return;
+  }
+  isPlaying = true;
+  isTTSPlaying = true;
+
+  // Mute continuous recording while Agnes speaks
+  if (continuousMode && continuousRecorder?.state === 'recording') {
+    continuousRecorder.stop();
+    clearInterval(vadInterval);
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
+
+  ttsPlayer.src = 'data:audio/mp3;base64,' + audioQueue.shift();
+  ttsPlayer.onended = playNext;
+  ttsPlayer.onerror = playNext;
+  ttsPlayer.play().catch(() => { isTTSPlaying = false; playNext(); });
+}
+
+// ── Keepalive ────────────────────────────────────────────────────
+setInterval(() => {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+}, 30000);
+
+// ── Textarea auto-resize ─────────────────────────────────────────
+msgInput.addEventListener('input', () => {
+  msgInput.style.height = 'auto';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 110) + 'px';
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnes Tachyon — Laboratorio</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #2a2a3a;
+    --accent: #8b5cf6;
+    --accent2: #c084fc;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --shadow-mode: #dc2626;
+    --eureka-mode: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  #header h1 {
+    font-size: 1.1rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  #status-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 0.8rem;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot-alive { background: var(--success); animation: pulse 2s infinite; }
+  .dot-dead { background: var(--danger); }
+  .dot-shadow { background: var(--shadow-mode); animation: pulse 1s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Neuro panel */
+  #neuro-panel {
+    display: flex;
+    gap: 16px;
+    padding: 8px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    overflow-x: auto;
+  }
+  .neuro-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .neuro-bar .bar {
+    width: 60px; height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .neuro-bar .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  /* Chat area */
+  #chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .message {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg-user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .msg-tachyon {
+    align-self: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .msg-tachyon.shadow-mode {
+    border-color: var(--shadow-mode);
+    background: #1a0a0a;
+  }
+  .msg-tachyon.eureka-mode {
+    border-color: var(--eureka-mode);
+  }
+  .msg-system {
+    align-self: center;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-style: italic;
+  }
+
+  /* Input area */
+  #input-area {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    align-items: flex-end;
+  }
+  #msg-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 0.95rem;
+    resize: none;
+    outline: none;
+    max-height: 120px;
+    min-height: 42px;
+    font-family: inherit;
+  }
+  #msg-input:focus { border-color: var(--accent); }
+
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button:hover { background: var(--accent2); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.danger { background: var(--danger); }
+
+  #mic-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+  }
+  #mic-btn.recording {
+    background: var(--danger);
+    animation: pulse 0.8s infinite;
+  }
+
+  #send-btn { min-width: 48px; height: 48px; justify-content: center; }
+
+  /* Audio player (hidden) */
+  #tts-player { display: none; }
+
+  /* Thinking indicator */
+  .thinking {
+    display: flex;
+    gap: 4px;
+    padding: 8px 14px;
+  }
+  .thinking span {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: bounce 1.4s ease-in-out infinite;
+  }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🔬 Agnes Tachyon — Laboratorio Cognitivo</h1>
+  <div id="status-bar">
+    <span id="state-label">LABORATORIO_CAOS</span>
+    <span class="status-dot dot-alive" id="status-dot"></span>
+    <span id="connection-status">Conectando...</span>
+  </div>
+</div>
+
+<div id="neuro-panel">
+  <div class="neuro-bar">
+    <span>Dopamina</span>
+    <div class="bar"><div class="bar-fill" id="bar-dopamine" style="width:0%;background:#8b5cf6"></div></div>
+  </div>
+  <div class="neuro-bar">
+    <span>Estrés</span>
+    <div class="bar"><div class="bar-fill" id="bar-stress" style="width:0%;background:#ef4444"></div></div>
+  </div>
+  <div class="neuro-bar">
+    <span>Novedad</span>
+    <div class="bar"><div class="bar-fill" id="bar-novelty" style="width:0%;background:#f59e0b"></div></div>
+  </div>
+  <div class="neuro-bar">
+    <span>Confianza</span>
+    <div class="bar"><div class="bar-fill" id="bar-trust" style="width:0%;background:#22c55e"></div></div>
+  </div>
+  <div class="neuro-bar">
+    <span>Somático</span>
+    <div class="bar"><div class="bar-fill" id="bar-somatic" style="width:0%;background:#06b6d4"></div></div>
+  </div>
+</div>
+
+<div id="chat-area">
+  <div class="message msg-system">
+    Oya oya? El laboratorio se está inicializando... Conectando sinapsis artificiales.
+  </div>
+</div>
+
+<div id="input-area">
+  <textarea id="msg-input" rows="1" placeholder="Habla con Agnes Tachyon..."
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendText()}"></textarea>
+  <button id="mic-btn" onclick="toggleRecording()" title="Mantén para hablar">🎤</button>
+  <button id="send-btn" onclick="sendText()" title="Enviar">➤</button>
+</div>
+
+<audio id="tts-player"></audio>
+
+<script>
+// ── Configuration ────────────────────────────────────────────────
+const WS_URL = `ws://${location.hostname}:${location.port}/ws`;
+const VOICE_ENABLED = true;
+
+// ── State ────────────────────────────────────────────────────────
+let ws = null;
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let reconnectTimer = null;
+let audioQueue = [];
+let isPlaying = false;
+
+// ── DOM ──────────────────────────────────────────────────────────
+const chatArea = document.getElementById('chat-area');
+const msgInput = document.getElementById('msg-input');
+const micBtn = document.getElementById('mic-btn');
+const sendBtn = document.getElementById('send-btn');
+const statusDot = document.getElementById('status-dot');
+const connStatus = document.getElementById('connection-status');
+const stateLabel = document.getElementById('state-label');
+const ttsPlayer = document.getElementById('tts-player');
+
+// ── WebSocket ────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    statusDot.className = 'status-dot dot-alive';
+    connStatus.textContent = 'En línea';
+    addSystemMessage('Conexión neural establecida. ¡El laboratorio está activo!');
+  };
+
+  ws.onclose = () => {
+    statusDot.className = 'status-dot dot-dead';
+    connStatus.textContent = 'Desconectada';
+    reconnectTimer = setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => {
+    statusDot.className = 'status-dot dot-dead';
+    connStatus.textContent = 'Error';
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    handleMessage(msg);
+  };
+}
+
+function handleMessage(msg) {
+  // Remove thinking indicator
+  const thinking = document.querySelector('.thinking-wrapper');
+  if (thinking) thinking.remove();
+
+  switch (msg.type) {
+    case 'response':
+      addTachyonMessage(msg.response, msg.state, msg.neuro);
+      updateNeuroPanel(msg.neuro);
+      updateStateLabel(msg.state);
+      if (msg.audio_b64) {
+        playAudio(msg.audio_b64);
+      }
+      break;
+
+    case 'transcription':
+      addUserMessage(msg.text, true);
+      break;
+
+    case 'status':
+      if (msg.status === 'thinking') {
+        showThinking();
+      } else if (msg.status === 'transcribing') {
+        showStatus('Transcribiendo audio...');
+      } else if (msg.status === 'no_speech') {
+        showStatus('No se detectó habla.');
+      }
+      break;
+
+    case 'pong':
+      break;
+  }
+}
+
+// ── Chat Messages ────────────────────────────────────────────────
+function addUserMessage(text, fromVoice = false) {
+  const div = document.createElement('div');
+  div.className = 'message msg-user';
+  div.textContent = (fromVoice ? '🎤 ' : '') + text;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function addTachyonMessage(text, state, neuro) {
+  const div = document.createElement('div');
+  let cls = 'message msg-tachyon';
+  if (state === 'sombra_singularidad') cls += ' shadow-mode';
+  if (state === 'enfoque_analitico') cls += ' eureka-mode';
+  div.className = cls;
+  div.textContent = text;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function addSystemMessage(text) {
+  const div = document.createElement('div');
+  div.className = 'message msg-system';
+  div.textContent = text;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function showThinking() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'message msg-tachyon thinking-wrapper';
+  wrapper.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
+  chatArea.appendChild(wrapper);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function showStatus(text) {
+  const existing = document.querySelector('.status-msg');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = 'message msg-system status-msg';
+  div.textContent = text;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  setTimeout(() => div.remove(), 3000);
+}
+
+// ── Neuro Panel ──────────────────────────────────────────────────
+function updateNeuroPanel(neuro) {
+  if (!neuro) return;
+  setBar('bar-dopamine', neuro.dopamine_phasic);
+  setBar('bar-stress', neuro.stress);
+  setBar('bar-novelty', neuro.novelty);
+  setBar('bar-trust', neuro.trust);
+  setBar('bar-somatic', neuro.somatic);
+}
+
+function setBar(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.style.width = Math.round(value * 100) + '%';
+}
+
+function updateStateLabel(state) {
+  stateLabel.textContent = state.toUpperCase().replace(/_/g, ' ');
+  if (state === 'sombra_singularidad') {
+    statusDot.className = 'status-dot dot-shadow';
+  } else {
+    statusDot.className = 'status-dot dot-alive';
+  }
+}
+
+// ── Send Text ────────────────────────────────────────────────────
+function sendText() {
+  const text = msgInput.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  addUserMessage(text);
+  showThinking();
+
+  ws.send(JSON.stringify({
+    type: 'text',
+    content: text,
+    voice: VOICE_ENABLED,
+  }));
+
+  msgInput.value = '';
+  msgInput.style.height = 'auto';
+}
+
+// ── Voice Recording ──────────────────────────────────────────────
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true }
+    });
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+
+      // Convert to WAV for Whisper
+      const wavBlob = await convertToWav(blob);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const b64 = reader.result.split(',')[1];
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          showThinking();
+          ws.send(JSON.stringify({ type: 'audio', audio: b64 }));
+        }
+      };
+      reader.readAsDataURL(wavBlob);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹';
+  } catch (err) {
+    console.error('Mic error:', err);
+    addSystemMessage('Error: No se pudo acceder al micrófono. Verifica permisos.');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micBtn.textContent = '🎤';
+}
+
+// ── Audio Conversion (WebM → WAV for Whisper) ────────────────────
+async function convertToWav(webmBlob) {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const arrayBuf = await webmBlob.arrayBuffer();
+
+  let audioBuffer;
+  try {
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+  } catch (e) {
+    // If decoding fails, send raw webm
+    console.warn('WAV conversion failed, sending raw audio');
+    return webmBlob;
+  }
+
+  const numChannels = 1;
+  const sampleRate = 16000;
+  const channelData = audioBuffer.getChannelData(0);
+
+  // Resample if needed
+  let samples = channelData;
+  if (audioBuffer.sampleRate !== sampleRate) {
+    const ratio = sampleRate / audioBuffer.sampleRate;
+    const newLength = Math.round(channelData.length * ratio);
+    samples = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const srcIdx = i / ratio;
+      const lo = Math.floor(srcIdx);
+      const hi = Math.min(lo + 1, channelData.length - 1);
+      const frac = srcIdx - lo;
+      samples[i] = channelData[lo] * (1 - frac) + channelData[hi] * frac;
+    }
+  }
+
+  // Encode WAV
+  const dataLength = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+
+  // WAV header
+  const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * 2, true);
+  view.setUint16(32, numChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // PCM data
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+
+  audioCtx.close();
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+// ── TTS Playback ─────────────────────────────────────────────────
+function playAudio(b64) {
+  audioQueue.push(b64);
+  if (!isPlaying) playNext();
+}
+
+function playNext() {
+  if (audioQueue.length === 0) { isPlaying = false; return; }
+  isPlaying = true;
+  const b64 = audioQueue.shift();
+  ttsPlayer.src = 'data:audio/mp3;base64,' + b64;
+  ttsPlayer.onended = playNext;
+  ttsPlayer.onerror = playNext;
+  ttsPlayer.play().catch(() => { isPlaying = false; });
+}
+
+// ── Auto-resize textarea ─────────────────────────────────────────
+msgInput.addEventListener('input', () => {
+  msgInput.style.height = 'auto';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+});
+
+// ── Keepalive ping ───────────────────────────────────────────────
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'ping' }));
+  }
+}, 30000);
+
+// ── Start ────────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>

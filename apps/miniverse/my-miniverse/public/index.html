@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miniverse - Cowork Office</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-top: #19232b;
+      --bg-bottom: #0d1216;
+      --frame: #354550;
+      --frame-highlight: #b8d8ea;
+      --panel-bg: rgba(18, 24, 30, 0.9);
+      --text: #dce8ef;
+      --accent: #9fd7f5;
+      --ok: #9fff80;
+      --warn: #ffd17e;
+      --err: #ff9393;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 12px;
+      background: radial-gradient(circle at 12% 18%, rgba(170, 203, 220, 0.14), transparent 40%), radial-gradient(circle at 82% 85%, rgba(118, 182, 214, 0.12), transparent 32%), linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+      color: var(--text);
+      font-family: "VT323", monospace;
+    }
+
+    .title {
+      font-family: "Press Start 2P", monospace;
+      font-size: clamp(12px, 2vw, 18px);
+      color: #e6f2f8;
+      text-shadow: 0 0 6px rgba(173, 208, 226, 0.35), 2px 2px 0 #374c5a;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+
+    .shell {
+      width: min(96vw, 940px);
+      border: 4px solid var(--frame);
+      border-radius: 12px;
+      background: linear-gradient(160deg, rgba(34, 48, 58, 0.95), rgba(13, 19, 24, 0.98));
+      box-shadow: 0 0 0 2px rgba(171, 205, 224, 0.28) inset, 0 10px 30px rgba(0, 0, 0, 0.46);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .world-wrap {
+      border: 3px solid var(--frame-highlight);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #151d24;
+      box-shadow: 0 0 0 2px rgba(12, 18, 30, 0.9) inset;
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .hud {
+      display: grid;
+      gap: 8px;
+    }
+
+    .status {
+      font-family: "Press Start 2P", monospace;
+      font-size: 10px;
+      color: var(--accent);
+      padding: 6px 8px;
+      border: 2px solid rgba(164, 207, 230, 0.45);
+      border-radius: 8px;
+      background: var(--panel-bg);
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 8px;
+    }
+
+    .agent-card {
+      border: 2px solid rgba(165, 202, 220, 0.36);
+      border-left-width: 6px;
+      border-radius: 8px;
+      padding: 8px;
+      background: var(--panel-bg);
+      min-height: 70px;
+      line-height: 1.1;
+    }
+
+    .agent-card h3 {
+      font-family: "Press Start 2P", monospace;
+      font-size: 9px;
+      margin-bottom: 6px;
+      color: #ecf6fb;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .agent-card .meta {
+      font-size: 20px;
+      color: #d2e6f1;
+    }
+
+    .agent-card .task {
+      margin-top: 4px;
+      color: #aac3d2;
+      font-size: 19px;
+      max-height: 40px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        padding: 10px;
+      }
+
+      .status {
+        font-size: 9px;
+      }
+
+      .agent-card h3 {
+        font-size: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="title">MINIVERSE MULTIAGENTE - COWORK OFFICE</div>
+  <section class="shell">
+    <div class="world-wrap">
+      <canvas id="gameCanvas" width="480" height="320"></canvas>
+    </div>
+    <div class="hud">
+      <div id="status" class="status">Conectando a Miniverse API...</div>
+      <div id="agentGrid" class="agent-grid"></div>
+    </div>
+  </section>
+
+  <script>
+    const API_URL = "http://localhost:4321";
+    const TILE_SIZE = 20;
+    const GRID_WIDTH = 24;
+    const GRID_HEIGHT = 16;
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = GRID_WIDTH * TILE_SIZE;
+    canvas.height = GRID_HEIGHT * TILE_SIZE;
+
+    const statusEl = document.getElementById("status");
+    const agentGridEl = document.getElementById("agentGrid");
+
+    const agentConfig = {
+      "boss-agent": { label: "Jefe", color: "#f2776a", card: "#ff6f66", sprite: "morty" },
+      "accountant-agent": { label: "Contador", color: "#56c9bc", card: "#4bd8c1", sprite: "dexter" },
+      "librarian-agent": { label: "Bibliotecaria", color: "#6da4ff", card: "#5ba4ff", sprite: "nova" },
+      "auditor-agent": { label: "Auditor", color: "#f1be5e", card: "#f8bd4f", sprite: "rio" },
+    };
+
+    function buildFloorGrid(cols, rows) {
+      const floor = [];
+      for (let y = 0; y < rows; y++) {
+        const row = [];
+        for (let x = 0; x < cols; x++) {
+          let t = 0;
+          if (y < 2 || x === 0 || x === cols - 1 || y === rows - 1) {
+            t = 1;
+          }
+          if (y >= 5 && y <= 10 && x >= 8 && x <= 15) {
+            t = 2;
+          }
+          if (y >= 3 && y <= 13 && (x === 6 || x === 17)) {
+            t = 3;
+          }
+          if (y === 3 && x >= 9 && x <= 14) {
+            t = 4;
+          }
+
+          if ((y === 6 || y === 10) && x >= 3 && x <= 20) {
+            t = 5;
+          }
+
+          if (y >= 4 && y <= 13 && (x === 11 || x === 12)) {
+            t = 6;
+          }
+          row.push(t);
+        }
+        floor.push(row);
+      }
+      return floor;
+    }
+
+    const world = {
+      gridCols: GRID_WIDTH,
+      gridRows: GRID_HEIGHT,
+      floor: buildFloorGrid(GRID_WIDTH, GRID_HEIGHT),
+      props: [
+        { id: "rug", x: 3, y: 4, w: 4, h: 3, layer: "below", anchors: [] },
+        { id: "rug", x: 17, y: 4, w: 4, h: 3, layer: "below", anchors: [] },
+        { id: "standing_desk", x: 4, y: 4, w: 2, h: 2, layer: "below", anchors: [{ name: "desk_boss", ox: 1, oy: 1.6, type: "work" }] },
+        { id: "standing_desk", x: 18, y: 4, w: 2, h: 2, layer: "below", anchors: [{ name: "desk_accountant", ox: 1, oy: 1.6, type: "work" }] },
+        { id: "office_chair", x: 4.65, y: 5.55, w: 1, h: 1, layer: "below", anchors: [{ name: "seat_boss", ox: 0.35, oy: 0.45, type: "work", pose: "seated" }] },
+        { id: "office_chair", x: 18.65, y: 5.55, w: 1, h: 1, layer: "below", anchors: [{ name: "seat_accountant", ox: 0.35, oy: 0.45, type: "work", pose: "seated" }] },
+        { id: "monitor_stand", x: 5, y: 5.1, w: 1, h: 1, layer: "above", anchors: [] },
+        { id: "monitor_stand", x: 19, y: 5.1, w: 1, h: 1, layer: "above", anchors: [] },
+        { id: "library_desk", x: 4, y: 11, w: 2, h: 2, layer: "below", anchors: [{ name: "desk_librarian", ox: 1, oy: 1.6, type: "work" }] },
+        { id: "standing_desk", x: 18, y: 11, w: 2, h: 2, layer: "below", anchors: [{ name: "desk_auditor", ox: 1, oy: 1.6, type: "work" }] },
+        { id: "office_chair", x: 4.65, y: 12.55, w: 1, h: 1, layer: "below", anchors: [{ name: "seat_librarian", ox: 0.35, oy: 0.45, type: "work", pose: "seated" }] },
+        { id: "office_chair", x: 18.65, y: 12.55, w: 1, h: 1, layer: "below", anchors: [{ name: "seat_auditor", ox: 0.35, oy: 0.45, type: "work", pose: "seated" }] },
+        { id: "bookshelf", x: 2.1, y: 8.4, w: 1, h: 3, layer: "above", anchors: [{ name: "library_browse", ox: 1.3, oy: 1.6, type: "learn", pose: "stand" }] },
+        { id: "bookshelf", x: 21.1, y: 8.4, w: 1, h: 3, layer: "above", anchors: [] },
+        { id: "reading_chair", x: 3.25, y: 10.9, w: 1, h: 1, layer: "below", anchors: [{ name: "library_focus", ox: 0.45, oy: 0.45, type: "learn", pose: "seated" }] },
+        { id: "meeting_table", x: 10, y: 6, w: 4, h: 2, layer: "below", anchors: [{ name: "meeting_center", ox: 2, oy: 1.2, type: "social" }] },
+        { id: "meeting_chair", x: 9.2, y: 6.4, w: 1, h: 1, layer: "below", anchors: [] },
+        { id: "meeting_chair", x: 14.8, y: 6.4, w: 1, h: 1, layer: "below", anchors: [] },
+        { id: "meeting_chair", x: 9.2, y: 7.6, w: 1, h: 1, layer: "below", anchors: [] },
+        { id: "meeting_chair", x: 14.8, y: 7.6, w: 1, h: 1, layer: "below", anchors: [] },
+        { id: "coffee_machine", x: 13, y: 2.3, w: 1, h: 1.4, layer: "below", anchors: [{ name: "coffee_spot", ox: 0.5, oy: 1.3, type: "utility" }] },
+        { id: "whiteboard", x: 9, y: 2.3, w: 3, h: 1.5, layer: "above", anchors: [{ name: "board_spot", ox: 1.5, oy: 1.6, type: "utility" }] },
+        { id: "glass_divider", x: 10.4, y: 4.2, w: 3.2, h: 1.2, layer: "above", anchors: [] },
+        { id: "pendant_lamp", x: 11.3, y: 1.7, w: 1, h: 1.2, layer: "above", anchors: [] },
+        { id: "pendant_lamp", x: 12.5, y: 1.7, w: 1, h: 1.2, layer: "above", anchors: [] },
+        { id: "couch", x: 10, y: 12, w: 4, h: 2, layer: "below", anchors: [{ name: "rest_sofa", ox: 2, oy: 1.5, type: "rest" }] },
+        { id: "plant", x: 2.3, y: 2.2, w: 1, h: 1, layer: "above", anchors: [] },
+        { id: "plant", x: 21.6, y: 2.2, w: 1, h: 1, layer: "above", anchors: [] },
+      ],
+      characters: {
+        "boss-agent": "seat_boss",
+        "accountant-agent": "seat_accountant",
+        "librarian-agent": "seat_librarian",
+        "auditor-agent": "seat_auditor",
+      },
+      wanderPoints: [[6, 8], [8, 9], [15, 8], [16, 9], [11, 9], [12, 10]],
+    };
+
+    function buildAnchorIndex(props) {
+      const anchors = {};
+      for (const prop of props) {
+        for (const a of prop.anchors || []) {
+          anchors[a.name] = {
+            name: a.name,
+            type: a.type,
+            x: prop.x + a.ox,
+            y: prop.y + a.oy,
+            pose: a.pose || "stand",
+          };
+        }
+      }
+      return anchors;
+    }
+
+    const anchorIndex = buildAnchorIndex(world.props);
+    const stateCache = new Map();
+    const entities = new Map();
+
+    let agents = [];
+    let tick = 0;
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function drawTile(x, y, tile) {
+      const px = x * TILE_SIZE;
+      const py = y * TILE_SIZE;
+
+      if (tile === 0) {
+        ctx.fillStyle = "#aeb8bf";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, 1);
+        ctx.strokeStyle = "rgba(83, 93, 101, 0.45)";
+        ctx.lineWidth = 0.7;
+        ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+      } else if (tile === 1) {
+        ctx.fillStyle = "#425460";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "#566976";
+        ctx.fillRect(px + 1, py + 2, TILE_SIZE - 2, TILE_SIZE - 4);
+        ctx.fillStyle = "#2f3f4a";
+        ctx.fillRect(px, py + TILE_SIZE - 2, TILE_SIZE, 2);
+      } else if (tile === 2) {
+        ctx.fillStyle = "#2f5e6f";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "#3a7186";
+        ctx.fillRect(px + (tick % 20 < 10 ? 2 : 4), py + 5, 5, 2);
+        ctx.fillRect(px + 11, py + 12, 4, 2);
+      } else if (tile === 3) {
+        ctx.fillStyle = "#9a7758";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "rgba(120, 86, 58, 0.5)";
+        ctx.fillRect(px + 2, py, 2, TILE_SIZE);
+        ctx.fillRect(px + 9, py, 2, TILE_SIZE);
+      } else if (tile === 5) {
+        ctx.fillStyle = "#b7a68f";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+        ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, 1);
+        ctx.strokeStyle = "rgba(131, 110, 88, 0.35)";
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+      } else if (tile === 6) {
+        ctx.fillStyle = "#d5c7b2";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "rgba(120, 96, 74, 0.2)";
+        ctx.fillRect(px + 3, py, 1, TILE_SIZE);
+        ctx.fillRect(px + 10, py, 1, TILE_SIZE);
+      } else {
+        ctx.fillStyle = "#7f8d97";
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "#a8b7c0";
+        ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+      }
+    }
+
+    function drawProp(prop) {
+      const px = prop.x * TILE_SIZE;
+      const py = prop.y * TILE_SIZE;
+
+      if (prop.id === "standing_desk") {
+        ctx.fillStyle = "#6a4e3a";
+        ctx.fillRect(px, py + 8, 40, 12);
+        ctx.fillStyle = "#87644d";
+        ctx.fillRect(px + 1, py + 9, 38, 10);
+        ctx.fillStyle = "#2f3d4b";
+        ctx.fillRect(px + 13, py + 3, 14, 6);
+        ctx.fillStyle = "#90c8ff";
+        ctx.fillRect(px + 15, py + 4, 10, 4);
+      } else if (prop.id === "rug") {
+        ctx.fillStyle = "#304f5a";
+        ctx.fillRect(px, py + 8, prop.w * TILE_SIZE, prop.h * TILE_SIZE - 8);
+        ctx.fillStyle = "rgba(147, 205, 227, 0.2)";
+        ctx.fillRect(px + 2, py + 10, prop.w * TILE_SIZE - 4, prop.h * TILE_SIZE - 14);
+      } else if (prop.id === "monitor_stand") {
+        ctx.fillStyle = "#2f3a43";
+        ctx.fillRect(px + 4, py + 4, 12, 8);
+        ctx.fillStyle = "#9ad2ff";
+        ctx.fillRect(px + 5, py + 5, 10, 6);
+        ctx.fillStyle = "#1e252a";
+        ctx.fillRect(px + 8, py + 12, 4, 2);
+      } else if (prop.id === "library_desk") {
+        ctx.fillStyle = "#5e4a33";
+        ctx.fillRect(px, py + 8, 40, 12);
+        ctx.fillStyle = "#7f6f4c";
+        ctx.fillRect(px + 2, py + 10, 36, 8);
+        ctx.fillStyle = "#2f3d4b";
+        ctx.fillRect(px + 4, py + 3, 12, 6);
+        ctx.fillRect(px + 23, py + 3, 12, 6);
+      } else if (prop.id === "meeting_table") {
+        ctx.fillStyle = "#6f563f";
+        ctx.fillRect(px, py + 8, prop.w * TILE_SIZE, 20);
+        ctx.fillStyle = "#8a6b4f";
+        ctx.fillRect(px + 3, py + 10, prop.w * TILE_SIZE - 6, 16);
+      } else if (prop.id === "meeting_chair") {
+        ctx.fillStyle = "#485f73";
+        ctx.fillRect(px + 3, py + 8, 14, 10);
+        ctx.fillStyle = "#5d7c94";
+        ctx.fillRect(px + 4, py + 9, 12, 7);
+      } else if (prop.id === "office_chair") {
+        ctx.fillStyle = "#2b3946";
+        ctx.fillRect(px + 6, py + 8, 8, 7);
+        ctx.fillStyle = "#607f96";
+        ctx.fillRect(px + 4, py + 6, 12, 4);
+        ctx.fillRect(px + 8, py + 15, 4, 2);
+        ctx.fillStyle = "#1f2a34";
+        ctx.fillRect(px + 9, py + 17, 2, 3);
+      } else if (prop.id === "reading_chair") {
+        ctx.fillStyle = "#72563e";
+        ctx.fillRect(px + 5, py + 8, 10, 7);
+        ctx.fillStyle = "#916e50";
+        ctx.fillRect(px + 4, py + 5, 12, 4);
+        ctx.fillStyle = "#4c3a29";
+        ctx.fillRect(px + 7, py + 15, 2, 4);
+        ctx.fillRect(px + 11, py + 15, 2, 4);
+      } else if (prop.id === "coffee_machine") {
+        ctx.fillStyle = "#2f3d46";
+        ctx.fillRect(px + 2, py + 2, 16, 18);
+        ctx.fillStyle = "#94d7ff";
+        ctx.fillRect(px + 5, py + 5, 10, 4);
+        ctx.fillStyle = "#20170f";
+        ctx.fillRect(px + 8, py + 12, 4, 5);
+      } else if (prop.id === "whiteboard") {
+        ctx.fillStyle = "#1f252a";
+        ctx.fillRect(px, py + 2, prop.w * TILE_SIZE, 15);
+        ctx.fillStyle = "#dae6ec";
+        ctx.fillRect(px + 2, py + 4, prop.w * TILE_SIZE - 4, 11);
+        ctx.fillStyle = "#9fb6c4";
+        ctx.fillRect(px + 5, py + 7, 14, 1);
+        ctx.fillRect(px + 11, py + 10, 18, 1);
+      } else if (prop.id === "glass_divider") {
+        ctx.fillStyle = "rgba(180, 224, 247, 0.24)";
+        ctx.fillRect(px, py, prop.w * TILE_SIZE, prop.h * TILE_SIZE);
+        ctx.strokeStyle = "rgba(194, 231, 250, 0.65)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, prop.w * TILE_SIZE - 1, prop.h * TILE_SIZE - 1);
+      } else if (prop.id === "pendant_lamp") {
+        ctx.fillStyle = "#494740";
+        ctx.fillRect(px + 9, py, 2, 8);
+        ctx.fillStyle = "#dcc9a7";
+        ctx.fillRect(px + 5, py + 8, 10, 6);
+        ctx.fillStyle = "rgba(255, 227, 158, 0.28)";
+        ctx.fillRect(px + 3, py + 14, 14, 4);
+      } else if (prop.id === "couch") {
+        ctx.fillStyle = "#516d84";
+        ctx.fillRect(px, py + 8, prop.w * TILE_SIZE, 16);
+        ctx.fillStyle = "#7491ab";
+        ctx.fillRect(px + 2, py + 10, prop.w * TILE_SIZE - 4, 10);
+        ctx.fillStyle = "#3f586b";
+        ctx.fillRect(px + 4, py + 4, prop.w * TILE_SIZE - 8, 5);
+      } else if (prop.id === "plant") {
+        ctx.fillStyle = "#695543";
+        ctx.fillRect(px + 5, py + 13, 10, 6);
+        ctx.fillStyle = "#3a7f4f";
+        ctx.fillRect(px + 4, py + 2, 12, 12);
+        ctx.fillStyle = "#4e9661";
+        ctx.fillRect(px + 6, py + 4, 8, 8);
+      } else if (prop.id === "bookshelf") {
+        ctx.fillStyle = "#604c39";
+        ctx.fillRect(px + 1, py + 2, 18, 56);
+        ctx.fillStyle = "#7a6249";
+        ctx.fillRect(px + 3, py + 4, 14, 52);
+        ctx.fillStyle = "#95b5c4";
+        ctx.fillRect(px + 4, py + 8, 5, 2);
+        ctx.fillRect(px + 10, py + 8, 5, 2);
+        ctx.fillStyle = "#d8be7f";
+        ctx.fillRect(px + 5, py + 20, 4, 2);
+        ctx.fillRect(px + 11, py + 20, 4, 2);
+      }
+    }
+
+    function renderLighting() {
+      // vignette suave para profundidad general
+      const grad = ctx.createRadialGradient(canvas.width * 0.5, canvas.height * 0.45, 20, canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.65);
+      grad.addColorStop(0, "rgba(255, 244, 216, 0.03)");
+      grad.addColorStop(1, "rgba(0, 0, 0, 0.22)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // glow en zona central de cowork/meeting
+      const glow = ctx.createRadialGradient(canvas.width * 0.5, canvas.height * 0.46, 12, canvas.width * 0.5, canvas.height * 0.46, 120);
+      glow.addColorStop(0, "rgba(255, 236, 189, 0.22)");
+      glow.addColorStop(1, "rgba(255, 236, 189, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(canvas.width * 0.5 - 120, canvas.height * 0.46 - 80, 240, 160);
+    }
+
+    function randomWalkable() {
+      for (let i = 0; i < 80; i++) {
+        const x = randInt(2, GRID_WIDTH - 3);
+        const y = randInt(2, GRID_HEIGHT - 3);
+        const t = world.floor[y][x];
+        if (t !== 1) {
+          return { x, y };
+        }
+      }
+      return { x: 12, y: 8 };
+    }
+
+    function ensureEntity(agentId) {
+      if (entities.has(agentId)) {
+        return entities.get(agentId);
+      }
+
+      const assignedAnchor = anchorIndex[world.characters[agentId]];
+      const start = assignedAnchor || randomWalkable();
+
+      const created = {
+        id: agentId,
+        x: start.x,
+        y: start.y,
+        tx: start.x,
+        ty: start.y,
+        dir: "down",
+        step: 0,
+        frame: 0,
+      };
+      entities.set(agentId, created);
+      return created;
+    }
+
+    function anchorsByType(type) {
+      return Object.values(anchorIndex).filter((a) => a.type === type);
+    }
+
+    function randomFrom(arr, fallback) {
+      if (!arr.length) {
+        return fallback;
+      }
+      return arr[randInt(0, arr.length - 1)];
+    }
+
+    function taskText(agent) {
+      return String(agent?.task || "").toLowerCase();
+    }
+
+    function isLibrarianLearning(agent) {
+      if (agent?.agent !== "librarian-agent") {
+        return false;
+      }
+      return /(aprend|investig|lectur|leer|estudi|consulta|fuente|conocimiento|document|catalog|curando|sintetiza|bibli)/.test(taskText(agent));
+    }
+
+    function assignTarget(entity, target) {
+      entity.tx = target.x;
+      entity.ty = target.y;
+      entity.targetName = target.name || null;
+      entity.targetPose = target.pose || "stand";
+    }
+
+    function updateTargets() {
+      for (const a of agents) {
+        const entity = ensureEntity(a.agent);
+        const assignedAnchor = anchorIndex[world.characters[a.agent]];
+        const librarianLearning = isLibrarianLearning(a);
+
+        if (librarianLearning) {
+          assignTarget(entity, anchorIndex.library_focus || anchorIndex.library_browse || assignedAnchor || randomWalkable());
+        } else if (a.state === "working" || a.state === "speaking") {
+          const targetType = a.state === "speaking" ? "social" : "work";
+          const target = a.state === "working" && assignedAnchor ? assignedAnchor : randomFrom(anchorsByType(targetType), randomWalkable());
+          assignTarget(entity, target);
+        } else if (a.state === "thinking") {
+          const target = a.agent === "librarian-agent"
+            ? anchorIndex.library_focus || anchorIndex.library_browse || randomFrom(anchorsByType("utility"), randomWalkable())
+            : randomFrom(anchorsByType("utility"), randomWalkable());
+          assignTarget(entity, target);
+        } else if (a.state === "sleeping") {
+          const target = randomFrom(anchorsByType("rest"), randomWalkable());
+          assignTarget(entity, target);
+        } else {
+          if (Math.hypot(entity.tx - entity.x, entity.ty - entity.y) < 0.5) {
+            const point = randomFrom(world.wanderPoints.map((w) => ({ x: w[0], y: w[1] })), randomWalkable());
+            assignTarget(entity, point);
+          }
+        }
+      }
+    }
+
+    function moveEntity(entity, speed = 0.055) {
+      const dx = entity.tx - entity.x;
+      const dy = entity.ty - entity.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.01) {
+        return;
+      }
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        entity.dir = dx > 0 ? "right" : "left";
+      } else {
+        entity.dir = dy > 0 ? "down" : "up";
+      }
+
+      const step = Math.min(speed, dist);
+      entity.x += (dx / dist) * step;
+      entity.y += (dy / dist) * step;
+      entity.step += 0.2;
+      entity.frame = (entity.frame + 1) % 40;
+    }
+
+    function citizenPalette(style, shirtColor) {
+      const byStyle = {
+        morty: { skin: "#f4d8be", skinShade: "#ddb894", hair: "#6f4b3c", hairHi: "#8d6651", pants: "#2f4963", shoes: "#1a222a", accent: "#9ed3ff" },
+        dexter: { skin: "#efd4b6", skinShade: "#d6b28d", hair: "#2f2f37", hairHi: "#4b4b57", pants: "#344e5f", shoes: "#1c242d", accent: "#90f3e7" },
+        nova: { skin: "#f1d9c2", skinShade: "#d8b49a", hair: "#67445f", hairHi: "#8b6282", pants: "#3e506f", shoes: "#1a2233", accent: "#c8b4ff" },
+        rio: { skin: "#ecc9a7", skinShade: "#d7a984", hair: "#4b3f2d", hairHi: "#6f5c42", pants: "#3c4f59", shoes: "#1a2327", accent: "#ffd79b" },
+      };
+      const p = byStyle[style] || byStyle.morty;
+      return {
+        skin: p.skin,
+        skinShade: p.skinShade,
+        hair: p.hair,
+        hairHi: p.hairHi,
+        shirt: shirtColor,
+        pants: p.pants,
+        shoes: p.shoes,
+        accent: p.accent,
+      };
+    }
+
+    function drawCitizen(entity, cfg, state) {
+      const px = entity.x * TILE_SIZE;
+      const py = entity.y * TILE_SIZE;
+      const isSeated = entity.targetPose === "seated" && Math.hypot(entity.tx - entity.x, entity.ty - entity.y) < 0.22;
+      const bob = isSeated ? 0 : Math.sin(entity.step) * 0.7;
+      const walkPulse = Math.sin(entity.step * 2.2) > 0 ? 1 : 0;
+      const armSwing = Math.sin(entity.step * 1.9) > 0 ? 1 : -1;
+      const palette = citizenPalette(cfg.sprite, cfg.color);
+
+      ctx.save();
+      ctx.translate(px, py + bob);
+
+      ctx.fillStyle = "rgba(12, 16, 22, 0.35)";
+      ctx.fillRect(4, isSeated ? 15 : 17, 12, 2);
+
+      // torso con sombreado y acento de ropa
+      ctx.fillStyle = palette.shirt;
+      ctx.fillRect(6, isSeated ? 10 : 9, 8, isSeated ? 6 : 7);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+      ctx.fillRect(6, 15, 8, 1);
+      ctx.fillStyle = palette.accent;
+      ctx.fillRect(9, isSeated ? 11 : 10, 2, isSeated ? 4 : 5);
+
+      // cuello y cabeza
+      ctx.fillStyle = palette.skinShade;
+      ctx.fillRect(9, 8, 2, 1);
+      ctx.fillStyle = palette.skin;
+      ctx.fillRect(6, 3, 8, 6);
+      ctx.fillStyle = palette.skinShade;
+      ctx.fillRect(6, 8, 8, 1);
+
+      // peinado por personaje
+      ctx.fillStyle = palette.hair;
+      ctx.fillRect(5, 2, 10, 3);
+      ctx.fillStyle = palette.hairHi;
+      ctx.fillRect(7, 2, 5, 1);
+      if (cfg.sprite === "nova") {
+        ctx.fillStyle = palette.hair;
+        ctx.fillRect(5, 5, 1, 3);
+        ctx.fillRect(14, 5, 1, 3);
+      }
+      if (cfg.sprite === "dexter") {
+        ctx.fillStyle = "#23232a";
+        ctx.fillRect(6, 1, 8, 1);
+      }
+
+      // brazos con animacion
+      ctx.fillStyle = palette.shirt;
+      if (isSeated) {
+        ctx.fillRect(5, 11, 1, 3);
+        ctx.fillRect(14, 11, 1, 3);
+        ctx.fillStyle = palette.skin;
+        ctx.fillRect(5, 14, 1, 1);
+        ctx.fillRect(14, 14, 1, 1);
+      } else {
+        ctx.fillRect(5, 10 + armSwing, 1, 4);
+        ctx.fillRect(14, 10 - armSwing, 1, 4);
+        ctx.fillStyle = palette.skin;
+        ctx.fillRect(5, 14 + armSwing, 1, 1);
+        ctx.fillRect(14, 14 - armSwing, 1, 1);
+      }
+
+      // piernas y zapatos
+      ctx.fillStyle = palette.pants;
+      if (isSeated) {
+        ctx.fillRect(6, 15, 3, 2);
+        ctx.fillRect(11, 15, 3, 2);
+        ctx.fillStyle = palette.shoes;
+        ctx.fillRect(6, 17, 3, 1);
+        ctx.fillRect(11, 17, 3, 1);
+      } else if (entity.dir === "left") {
+        ctx.fillRect(5, 12, 2, 5);
+        ctx.fillRect(11, 12, 2, 5);
+      } else if (entity.dir === "right") {
+        ctx.fillRect(7, 12, 2, 5);
+        ctx.fillRect(13, 12, 2, 5);
+      } else {
+        ctx.fillRect(6 + walkPulse, 12, 2, 5);
+        ctx.fillRect(12 - walkPulse, 12, 2, 5);
+      }
+
+      if (!isSeated) {
+        ctx.fillStyle = palette.shoes;
+        ctx.fillRect(6 + walkPulse, 17, 2, 1);
+        ctx.fillRect(12 - walkPulse, 17, 2, 1);
+      }
+
+      ctx.fillStyle = "#000";
+      if (entity.dir === "left") {
+        ctx.fillRect(7, 5, 1, 1);
+        ctx.fillRect(7, 7, 1, 1);
+      } else if (entity.dir === "right") {
+        ctx.fillRect(12, 5, 1, 1);
+        ctx.fillRect(12, 7, 1, 1);
+      } else {
+        ctx.fillRect(8, 5, 1, 1);
+        ctx.fillRect(11, 5, 1, 1);
+      }
+
+      // boca, nariz y detalle de mejilla para dar aspecto humano
+      ctx.fillStyle = "#603c2c";
+      if (entity.dir === "left") {
+        ctx.fillRect(7, 7, 1, 1);
+      } else if (entity.dir === "right") {
+        ctx.fillRect(12, 7, 1, 1);
+      } else {
+        ctx.fillRect(9, 7, 2, 1);
+      }
+
+      ctx.fillStyle = "rgba(215, 124, 124, 0.45)";
+      ctx.fillRect(6, 6, 1, 1);
+      ctx.fillRect(13, 6, 1, 1);
+
+      if (state === "speaking") {
+        ctx.fillStyle = "#dff7ff";
+        ctx.fillRect(15, 1, 4, 4);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(16, 2, 2, 1);
+      } else if (state === "thinking") {
+        ctx.fillStyle = "#dff7ff";
+        ctx.fillRect(16, 0, 3, 3);
+        ctx.fillRect(14, 2, 1, 1);
+      } else if (state === "sleeping") {
+        ctx.fillStyle = "#d8e8ff";
+        ctx.fillRect(15, 1, 4, 1);
+        ctx.fillRect(16, 3, 3, 1);
+      }
+
+      ctx.restore();
+    }
+
+    function renderWorld() {
+      for (let y = 0; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+          drawTile(x, y, world.floor[y][x]);
+        }
+      }
+    }
+
+    function renderProps(layer) {
+      for (const prop of world.props) {
+        if (prop.layer === layer) {
+          drawProp(prop);
+        }
+      }
+    }
+
+    function renderAgents() {
+      for (const a of agents) {
+        const entity = ensureEntity(a.agent);
+        const cfg = agentConfig[a.agent] || { label: a.name || a.agent, color: "#dddddd", card: "#c8e8fb", sprite: "morty" };
+        moveEntity(entity);
+        drawCitizen(entity, cfg, a.state || "idle");
+      }
+    }
+
+    function animate() {
+      tick += 1;
+      renderWorld();
+      renderProps("below");
+      renderAgents();
+      renderProps("above");
+      renderLighting();
+      requestAnimationFrame(animate);
+    }
+
+    function stateTag(state) {
+      const s = String(state || "idle").toLowerCase();
+      if (s === "working") return "TRABAJANDO";
+      if (s === "speaking") return "HABLANDO";
+      if (s === "thinking") return "PENSANDO";
+      if (s === "sleeping") return "DESCANSANDO";
+      return "IDLE";
+    }
+
+    function taskPreview(task) {
+      const text = String(task || "").trim();
+      if (!text) return "Sin tarea activa";
+      return text.length > 48 ? `${text.slice(0, 45)}...` : text;
+    }
+
+    function updatePanel() {
+      if (!agents.length) {
+        agentGridEl.innerHTML = "";
+        return;
+      }
+
+      const cards = agents.map((a) => {
+        const cfg = agentConfig[a.agent] || { label: a.name || a.agent, card: "#d0eaff", sprite: "citizen" };
+        return `
+          <article class="agent-card" style="border-left-color: ${cfg.card};">
+            <h3>${cfg.label}</h3>
+            <div class="meta">Estado: ${stateTag(a.state)} | ${cfg.sprite}</div>
+            <div class="task">${taskPreview(a.task)}</div>
+          </article>
+        `;
+      }).join("");
+
+      agentGridEl.innerHTML = cards;
+    }
+
+    function setStatus(text, mode = "ok") {
+      statusEl.textContent = text;
+      if (mode === "ok") {
+        statusEl.style.color = "var(--ok)";
+      } else if (mode === "warn") {
+        statusEl.style.color = "var(--warn)";
+      } else {
+        statusEl.style.color = "var(--err)";
+      }
+    }
+
+    async function fetchAgents() {
+      try {
+        const res = await fetch(`${API_URL}/api/agents`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        agents = Array.isArray(data.agents) ? data.agents : [];
+
+        for (const a of agents) {
+          const prev = stateCache.get(a.agent);
+          const now = String(a.state || "idle");
+          if (prev !== now) {
+            stateCache.set(a.agent, now);
+          }
+          ensureEntity(a.agent);
+        }
+
+        updateTargets();
+        updatePanel();
+
+        if (agents.length > 0) {
+          setStatus(`Conectado: ${agents.length} agentes activos`, "ok");
+        } else {
+          setStatus("API conectada, sin agentes en heartbeat", "warn");
+        }
+      } catch (error) {
+        setStatus("Sin conexion con Miniverse API en localhost:4321", "err");
+      }
+    }
+
+    async function init() {
+      await fetchAgents();
+      animate();
+      setInterval(fetchAgents, 2000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

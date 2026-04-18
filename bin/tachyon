@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+AGNES_HOME="$(dirname "$SCRIPT_DIR")"
+export AGNES_HOME
+export PYTHONPATH="$AGNES_HOME"
+
+CMD="${1:-server}"
+shift || true
+
+case "$CMD" in
+  start)
+    exec python3 -m tachyon server "$@"
+    ;;
+  watchdog)
+    exec python3 -m tachyon watchdog "$@"
+    ;;
+  stop)
+    exec python3 -m tachyon stop "$@"
+    ;;
+  restart)
+    python3 -m tachyon stop "$@"
+    exec python3 -m tachyon server
+    ;;
+  health)
+    exec python3 -m tachyon health "$@"
+    ;;
+  diagnose)
+    exec python3 -m tachyon diagnose "$@"
+    ;;
+  stack)
+    exec python3 -m tachyon stack "$@"
+    ;;
+  portable)
+    exec python3 -m tachyon portable "$@"
+    ;;
+  train)
+    exec python3 -m tachyon train "$@"
+    ;;
+  *)
+    exec python3 -m tachyon "$CMD" "$@"
+    ;;
+esac

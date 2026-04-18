@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agnes-tachyon"
+version = "0.1.0"
+description = "Local cognitive systems prototype with Ollama/Qwen, voice I/O, training, and Miniverse integration."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "kaitokid" }
+]
+keywords = ["ai", "agents", "ollama", "fastapi", "voice", "miniverse", "research"]
+dependencies = [
+  "aiohttp>=3.9",
+  "edge-tts>=6.1",
+  "fastapi>=0.110",
+  "faster-whisper>=1.0",
+  "numpy>=1.26",
+  "pydantic>=2.7",
+  "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+]
+
+[project.scripts]
+agnes-tachyon = "tachyon.cli:main"
+tachyonctl = "tachyon.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tachyon*"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+tachyon = ["frontend/*.html", "Modelfile.tachyon"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

@@ -1,0 +1,32 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+
+# Generated runtime state
+/apps/miniverse/my-world/generated/
+/apps/miniverse/my-miniverse/generated/
+/apps/miniverse/my-miniverse/models
+/tachyon/data/memory.json
+/tachyon/data/state.json
+/tachyon/data/audio/
+
+# Heavy artifacts and local model state
+/data/models/
+/data/**/runs/
+/data/**/merged/
+/data/**/checkpoints/
+/data/**/cache/
+
+# Local build / portability outputs
+/build/
+/dist/
+!/dist/.gitkeep
+
+# Editor / OS noise
+.DS_Store

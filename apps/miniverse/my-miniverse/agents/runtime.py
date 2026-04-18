@@ -18,7 +18,7 @@ from typing import Any
 SERVER = os.getenv("MINIVERSE_SERVER_URL", "http://localhost:4321")
 HEARTBEAT_SEC = float(os.getenv("MINIVERSE_HEARTBEAT_SEC", "20"))
 POLL_SEC = float(os.getenv("MINIVERSE_POLL_SEC", "3"))
-BOOTSTRAP_DEMO = os.getenv("MINIVERSE_BOOTSTRAP_DEMO", "1") == "1"
+BOOTSTRAP_DEMO = os.getenv("MINIVERSE_BOOTSTRAP_DEMO", "0") == "1"
 LAUNCH_INTERNAL_LEARNER = os.getenv("MINIVERSE_LAUNCH_LEARNER", "0") == "1"
 LIBRARIAN_PID_FILE = Path("/tmp/librarian_learning.pid")
 
@@ -27,6 +27,9 @@ TACHYON_URL = os.getenv("TACHYON_URL", "http://localhost:7777")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = BASE_DIR / "generated"
+COMMAND_FILE = OUTPUT_DIR / "command_center_commands.jsonl"
+STATE_FILE = OUTPUT_DIR / "command_center_state.json"
+SNAPSHOT_DIR = OUTPUT_DIR / "snapshots"
 
 AGENTS: dict[str, dict[str, Any]] = {
     "boss": {
@@ -65,6 +68,21 @@ agent_cycles = {key: 0 for key in AGENTS}  # contador de ciclos sin actividad po
 VISUAL_ACTIVITY_INTERVAL = 15  # cada N ciclos de poll, hacer movimiento visual
 EMOTES = ["thinking", "wave", "jump", "happy"]
 EMOTE_IDX = 0
+AUTO_CONVERSATION = os.getenv("MINIVERSE_AUTO_CONVERSATION", "0") == "1"
+CONVERSATION_INTERVAL_SEC = float(os.getenv("MINIVERSE_CONVERSATION_INTERVAL_SEC", "90"))
+last_conversation = 0.0
+
+PAUSE_ALL = False
+PAUSED_AGENTS: dict[str, bool] = {key: False for key in AGENTS}
+CONTROL_PARAMS: dict[str, Any] = {
+    "pollSec": POLL_SEC,
+    "heartbeatSec": HEARTBEAT_SEC,
+    "visualInterval": VISUAL_ACTIVITY_INTERVAL,
+    "autoConversation": AUTO_CONVERSATION,
+    "conversationIntervalSec": CONVERSATION_INTERVAL_SEC,
+}
+RESPONSES: list[dict[str, Any]] = []
+SEEN_COMMAND_IDS: set[str] = set()
 
 
 def now_iso() -> str:
@@ -329,6 +347,40 @@ def process_inbox(agent_key: str) -> None:
             handle_worker_message(agent_key, msg)
 
 
+def active_conversation_agents() -> list[str]:
+    available: list[str] = []
+    for key in AGENTS:
+        if key == "librarian" and LIBRARIAN_PID_FILE.exists():
+            continue
+        if is_paused(key):
+            continue
+        available.append(key)
+    return available
+
+
+def spark_conversation(topic: str, participants: list[str] | None = None) -> bool:
+    keys = participants or active_conversation_agents()
+    keys = [k for k in keys if k in AGENTS and not is_paused(k)]
+    if len(keys) < 2:
+        return False
+
+    a = keys[0]
+    b = keys[1]
+    opening = f"Mini debate sobre {topic}: enfoquemos riesgos, accion y seguimiento."
+    reply = f"Recibido, {AGENTS[a]['name']}. Yo cubro validacion y evidencia para {topic}."
+    close = f"Perfecto. Cerramos checklist colaborativo para {topic}."
+
+    act(a, {"type": "speak", "message": opening})
+    act(a, {"type": "message", "to": AGENTS[b]["id"], "message": f"CHAT|{json.dumps({'topic': topic, 'from': AGENTS[a]['name']}, ensure_ascii=False)}"})
+    act(b, {"type": "speak", "message": reply})
+    act(b, {"type": "message", "to": AGENTS[a]["id"], "message": f"CHAT_ACK|{json.dumps({'topic': topic, 'from': AGENTS[b]['name']}, ensure_ascii=False)}"})
+    act(a, {"type": "speak", "message": close})
+
+    heartbeat(a, "collaborating", f"Conversando con {AGENTS[b]['name']}")
+    heartbeat(b, "collaborating", f"Conversando con {AGENTS[a]['name']}")
+    return True
+
+
 def bootstrap_demo_tasks() -> None:
     demo = [
         "Revisa presupuesto mensual: ingresos 5000, gastos 4200 y propone mejoras.",
@@ -338,8 +390,252 @@ def bootstrap_demo_tasks() -> None:
         act("boss", {"type": "message", "to": AGENTS["boss"]["id"], "message": text})
 
 
+def task_status_summary() -> dict[str, int]:
+    summary: dict[str, int] = {}
+    for item in tasks.values():
+        status = str(item.get("status", "unknown"))
+        summary[status] = summary.get(status, 0) + 1
+    return summary
+
+
+def push_response(kind: str, message: str, *, ok: bool = True, extra: dict[str, Any] | None = None) -> None:
+    entry: dict[str, Any] = {
+        "at": now_iso(),
+        "kind": kind,
+        "ok": ok,
+        "message": short(message, 300),
+    }
+    if extra:
+        entry.update(extra)
+    RESPONSES.append(entry)
+    if len(RESPONSES) > 60:
+        del RESPONSES[:-60]
+
+
+def write_state(last_command_id: str | None = None) -> None:
+    agents_state = []
+    for key, data in AGENTS.items():
+        agents_state.append(
+            {
+                "key": key,
+                "id": data["id"],
+                "name": data["name"],
+                "state": data.get("state", "idle"),
+                "task": data.get("task", ""),
+                "paused": bool(PAUSE_ALL or PAUSED_AGENTS.get(key, False)),
+                "cycles": int(agent_cycles.get(key, 0)),
+            }
+        )
+
+    recent_tasks = sorted(tasks.values(), key=lambda item: str(item.get("updatedAt", "")), reverse=True)[:10]
+    payload = {
+        "updatedAt": now_iso(),
+        "runtime": {
+            "pausedAll": PAUSE_ALL,
+            "pausedAgents": PAUSED_AGENTS,
+            "parameters": CONTROL_PARAMS,
+            "lastCommandId": last_command_id,
+            "librarianLearnerActive": LIBRARIAN_PID_FILE.exists(),
+            "lastConversationAt": datetime.fromtimestamp(last_conversation, timezone.utc).isoformat() if last_conversation > 0 else None,
+        },
+        "agents": agents_state,
+        "tasks": {
+            "total": len(tasks),
+            "byStatus": task_status_summary(),
+            "recent": recent_tasks,
+        },
+        "responses": RESPONSES[-20:],
+    }
+    STATE_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def save_snapshot(reason: str = "manual") -> str:
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    snapshot_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = SNAPSHOT_DIR / f"snapshot_{snapshot_id}_{reason}.json"
+    payload = {
+        "savedAt": now_iso(),
+        "reason": reason,
+        "runtime": {
+            "pausedAll": PAUSE_ALL,
+            "pausedAgents": PAUSED_AGENTS,
+            "parameters": CONTROL_PARAMS,
+        },
+        "agents": AGENTS,
+        "tasks": tasks,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(path)
+
+
+def resolve_agent_key(value: str) -> str | None:
+    low = value.strip().lower()
+    if low in AGENTS:
+        return low
+    for key, data in AGENTS.items():
+        if low == str(data.get("id", "")).lower():
+            return key
+    return None
+
+
+def is_paused(agent_key: str) -> bool:
+    return PAUSE_ALL or bool(PAUSED_AGENTS.get(agent_key, False))
+
+
+def apply_runtime_params(params: dict[str, Any]) -> dict[str, Any]:
+    global POLL_SEC, HEARTBEAT_SEC, VISUAL_ACTIVITY_INTERVAL, AUTO_CONVERSATION, CONVERSATION_INTERVAL_SEC
+    applied: dict[str, Any] = {}
+
+    if "pollSec" in params:
+        value = max(0.5, float(params["pollSec"]))
+        POLL_SEC = value
+        CONTROL_PARAMS["pollSec"] = value
+        applied["pollSec"] = value
+
+    if "heartbeatSec" in params:
+        value = max(3.0, float(params["heartbeatSec"]))
+        HEARTBEAT_SEC = value
+        CONTROL_PARAMS["heartbeatSec"] = value
+        applied["heartbeatSec"] = value
+
+    if "visualInterval" in params:
+        value = max(1, int(params["visualInterval"]))
+        VISUAL_ACTIVITY_INTERVAL = value
+        CONTROL_PARAMS["visualInterval"] = value
+        applied["visualInterval"] = value
+
+    if "autoConversation" in params:
+        value = bool(params["autoConversation"])
+        AUTO_CONVERSATION = value
+        CONTROL_PARAMS["autoConversation"] = value
+        applied["autoConversation"] = value
+
+    if "conversationIntervalSec" in params:
+        value = max(10.0, float(params["conversationIntervalSec"]))
+        CONVERSATION_INTERVAL_SEC = value
+        CONTROL_PARAMS["conversationIntervalSec"] = value
+        applied["conversationIntervalSec"] = value
+
+    return applied
+
+
+def iter_new_commands() -> list[dict[str, Any]]:
+    if not COMMAND_FILE.exists():
+        return []
+
+    commands: list[dict[str, Any]] = []
+    try:
+        for line in COMMAND_FILE.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                command = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            cmd_id = str(command.get("id", "")).strip()
+            if not cmd_id or cmd_id in SEEN_COMMAND_IDS:
+                continue
+            SEEN_COMMAND_IDS.add(cmd_id)
+            commands.append(command)
+    except Exception:  # noqa: BLE001
+        return []
+    return commands
+
+
+def execute_command(command: dict[str, Any]) -> None:
+    global PAUSE_ALL
+
+    cmd_id = str(command.get("id", "")).strip() or "unknown"
+    action = str(command.get("action", "")).strip()
+    target = str(command.get("target", "all")).strip()
+    params = command.get("params") if isinstance(command.get("params"), dict) else {}
+    message = str(command.get("message", "")).strip()
+
+    try:
+        if action == "pause_all":
+            PAUSE_ALL = True
+            for key in AGENTS:
+                PAUSED_AGENTS[key] = True
+                AGENTS[key]["state"] = "sleeping"
+                AGENTS[key]["task"] = "En pausa por centro de comando"
+            snapshot = save_snapshot("pause_all") if params.get("saveSnapshot", True) else None
+            push_response("pause_all", "Todos los agentes pausados", extra={"snapshot": snapshot, "commandId": cmd_id})
+
+        elif action == "resume_all":
+            PAUSE_ALL = False
+            for key in AGENTS:
+                PAUSED_AGENTS[key] = False
+                if AGENTS[key].get("state") in {"paused", "sleeping"}:
+                    AGENTS[key]["state"] = "idle"
+            push_response("resume_all", "Todos los agentes reanudados", extra={"commandId": cmd_id})
+
+        elif action in {"pause_agent", "resume_agent"}:
+            key = resolve_agent_key(target)
+            if not key:
+                raise RuntimeError(f"Agente no reconocido: {target}")
+            paused = action == "pause_agent"
+            PAUSED_AGENTS[key] = paused
+            AGENTS[key]["state"] = "sleeping" if paused else "idle"
+            AGENTS[key]["task"] = "En pausa por centro de comando" if paused else "Esperando tareas"
+            if not paused and all(not val for val in PAUSED_AGENTS.values()):
+                PAUSE_ALL = False
+            if paused and all(PAUSED_AGENTS.values()):
+                PAUSE_ALL = True
+            push_response(action, f"{AGENTS[key]['name']} {'pausado' if paused else 'reanudado'}", extra={"agent": key, "commandId": cmd_id})
+
+        elif action == "save_snapshot":
+            reason = str(params.get("reason", "manual"))
+            snapshot = save_snapshot(reason)
+            push_response("save_snapshot", "Snapshot guardado", extra={"snapshot": snapshot, "commandId": cmd_id})
+
+        elif action == "set_params":
+            applied = apply_runtime_params(params)
+            if not applied:
+                raise RuntimeError("No se aplico ningun parametro")
+            push_response("set_params", f"Parametros aplicados: {applied}", extra={"applied": applied, "commandId": cmd_id})
+
+        elif action == "dispatch":
+            if not message:
+                raise RuntimeError("Falta mensaje")
+
+            target_key = resolve_agent_key(target)
+            if target_key is None or target_key == "boss":
+                # Enviar al boss para conservar orquestacion normal.
+                act("boss", {"type": "message", "to": AGENTS["boss"]["id"], "message": message})
+                push_response("dispatch", "Mensaje enviado a boss", extra={"target": "boss", "commandId": cmd_id})
+            else:
+                # Envio directo desde boss al agente objetivo.
+                act("boss", {"type": "message", "to": AGENTS[target_key]["id"], "message": f"TASK|{json.dumps(build_task(message, 'command-center'), ensure_ascii=False)}"})
+                push_response("dispatch", f"Mensaje enviado a {AGENTS[target_key]['name']}", extra={"target": target_key, "commandId": cmd_id})
+
+        elif action == "spark_conversation":
+            topic = message or str(params.get("topic", "coordinacion de equipo")).strip()
+            raw_participants = params.get("participants", [])
+            participants: list[str] = []
+            if isinstance(raw_participants, list):
+                for item in raw_participants:
+                    key = resolve_agent_key(str(item))
+                    if key and key not in participants:
+                        participants.append(key)
+            if not participants:
+                participants = active_conversation_agents()
+            ok = spark_conversation(topic, participants)
+            if not ok:
+                raise RuntimeError("No hay suficientes agentes activos para conversar")
+            push_response("spark_conversation", f"Conversacion iniciada sobre: {topic}", extra={"participants": participants[:2], "commandId": cmd_id})
+
+        else:
+            raise RuntimeError(f"Accion desconocida: {action}")
+
+    except Exception as exc:  # noqa: BLE001
+        push_response("error", f"{action}: {exc}", ok=False, extra={"commandId": cmd_id})
+
+    write_state(last_command_id=cmd_id)
+
+
 def main() -> int:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     wait_for_tachyon()
 
     # Opcional: lanzar bibliotecaria internamente (desactivado por defecto)
@@ -365,13 +661,19 @@ def main() -> int:
     if BOOTSTRAP_DEMO:
         bootstrap_demo_tasks()
 
-    global last_heartbeat, EMOTE_IDX
+    global last_heartbeat, EMOTE_IDX, last_conversation
     last_heartbeat = time.time()
+    last_conversation = 0.0
 
     print("[agents] runtime Python iniciado: boss/accountant/librarian/auditor")
     print("[agents] movimiento visual habilitado (emotes + cambios de estado)")
+    write_state(last_command_id=None)
     while True:
         now = time.time()
+
+        # Centro de comando: leer y ejecutar nuevos comandos.
+        for command in iter_new_commands():
+            execute_command(command)
         
         # HEARTBEAT: enviar estado cada 20 segundos
         if now - last_heartbeat >= HEARTBEAT_SEC:
@@ -380,6 +682,9 @@ def main() -> int:
                     # Skip librarian heartbeat si está en modo aprendizaje activo
                     if key == "librarian" and LIBRARIAN_PID_FILE.exists():
                         continue
+                    if is_paused(key):
+                        AGENTS[key]["state"] = "sleeping"
+                        AGENTS[key]["task"] = "En pausa por centro de comando"
                     heartbeat(key)
                 except Exception:  # noqa: BLE001
                     pass
@@ -391,6 +696,13 @@ def main() -> int:
                 # Saltar inbox de bibliotecaria cuando está en modo aprendizaje
                 if key == "librarian" and LIBRARIAN_PID_FILE.exists():
                     continue
+
+                if is_paused(key):
+                    AGENTS[key]["state"] = "sleeping"
+                    AGENTS[key]["task"] = "En pausa por centro de comando"
+                    agent_cycles[key] += 1
+                    continue
+
                 # leer inbox y procesar mensajes
                 inbox = read_inbox(key)
                 if inbox:
@@ -435,6 +747,17 @@ def main() -> int:
 
             except Exception:  # noqa: BLE001
                 pass
+
+        if AUTO_CONVERSATION and (now - last_conversation) >= CONVERSATION_INTERVAL_SEC:
+            try:
+                topic = f"sincronia operativa {datetime.now().strftime('%H:%M')}"
+                if spark_conversation(topic):
+                    push_response("auto_conversation", f"Conversacion automatica: {topic}")
+                    last_conversation = now
+            except Exception as exc:  # noqa: BLE001
+                push_response("auto_conversation", f"No se pudo iniciar conversacion: {exc}", ok=False)
+
+        write_state(last_command_id=None)
 
         time.sleep(POLL_SEC)
 

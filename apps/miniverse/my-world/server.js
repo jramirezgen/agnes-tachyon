@@ -1,6 +1,6 @@
 import { createServer, request as httpRequest } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, statSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { MiniverseServer } from '@miniverse/server';
 
@@ -46,8 +46,57 @@ const MIME = {
   '.svg': 'image/svg+xml', '.woff2': 'font/woff2',
 };
 
+const runtimeRoot = path.resolve(process.env.MINIVERSE_RUNTIME_ROOT || '../my-miniverse');
+const runtimeGeneratedDir = path.join(runtimeRoot, 'generated');
+const commandFile = path.join(runtimeGeneratedDir, 'command_center_commands.jsonl');
+const stateFile = path.join(runtimeGeneratedDir, 'command_center_state.json');
+const snapshotsDir = path.join(runtimeGeneratedDir, 'snapshots');
+
+mkdirSync(runtimeGeneratedDir, { recursive: true });
+mkdirSync(snapshotsDir, { recursive: true });
+
 const distDir = path.resolve('dist');
 const publicDir = path.resolve('public');
+
+function readJsonSafe(filePath, fallback) {
+  if (!existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+  } catch {
+    return fallback;
+  }
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function makeCommand(action, body) {
+  const rand = Math.random().toString(36).slice(2, 8);
+  return {
+    id: `cc_${Date.now()}_${rand}`,
+    issuedAt: nowIso(),
+    action,
+    target: body.target ?? 'all',
+    message: body.message ?? '',
+    params: body.params ?? {},
+    source: body.source ?? 'ui',
+  };
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+      if (data.length > 1024 * 1024) {
+        reject(new Error('Payload demasiado grande'));
+      }
+    });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
 
 function tryServe(res, filePath) {
   if (!existsSync(filePath) || !statSync(filePath).isFile()) return false;
@@ -82,6 +131,94 @@ const server = createServer((req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type',
     });
     res.end();
+    return;
+  }
+
+  // Centro de Comando: estado runtime
+  if (req.method === 'GET' && url.pathname === '/api/command-center/status') {
+    const state = readJsonSafe(stateFile, {
+      updatedAt: nowIso(),
+      runtime: {
+        pausedAll: false,
+        pausedAgents: {},
+        parameters: {},
+        lastCommandId: null,
+      },
+      agents: [],
+      tasks: { total: 0, byStatus: {}, recent: [] },
+      responses: [],
+    });
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end(JSON.stringify(state));
+    return;
+  }
+
+  // Centro de Comando: snapshots guardados
+  if (req.method === 'GET' && url.pathname === '/api/command-center/snapshots') {
+    let files = [];
+    try {
+      files = readdirSync(snapshotsDir)
+        .filter((name) => name.endsWith('.json'))
+        .sort()
+        .reverse()
+        .slice(0, 20);
+    } catch {
+      files = [];
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end(JSON.stringify({ snapshots: files }));
+    return;
+  }
+
+  // Centro de Comando: enviar comandos al runtime
+  if (req.method === 'POST' && url.pathname === '/api/command-center/command') {
+    readBody(req)
+      .then((rawBody) => {
+        let body = {};
+        try {
+          body = rawBody ? JSON.parse(rawBody) : {};
+        } catch {
+          res.writeHead(400, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+          });
+          res.end(JSON.stringify({ ok: false, error: 'JSON invalido' }));
+          return;
+        }
+
+        const action = String(body.action || '').trim();
+        const allowed = new Set(['pause_all', 'resume_all', 'pause_agent', 'resume_agent', 'save_snapshot', 'set_params', 'dispatch', 'spark_conversation']);
+        if (!allowed.has(action)) {
+          res.writeHead(400, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+          });
+          res.end(JSON.stringify({ ok: false, error: 'Accion no soportada' }));
+          return;
+        }
+
+        const cmd = makeCommand(action, body);
+        appendFileSync(commandFile, `${JSON.stringify(cmd)}\n`, 'utf-8');
+
+        res.writeHead(202, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ ok: true, command: cmd }));
+      })
+      .catch((err) => {
+        res.writeHead(500, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ ok: false, error: String(err?.message || err) }));
+      });
     return;
   }
 

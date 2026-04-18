@@ -38,6 +38,10 @@ KEEP_MERGED = int(os.getenv("LIBRARIAN_SWIFT_KEEP_MERGED", "2"))
 EVAL_ON_MERGE = os.getenv("LIBRARIAN_SWIFT_EVAL_ON_MERGE", "1") == "1"
 EVAL_CASES = int(os.getenv("LIBRARIAN_SWIFT_EVAL_CASES", "6"))
 EVAL_TIMEOUT_SEC = int(os.getenv("LIBRARIAN_SWIFT_EVAL_TIMEOUT_SEC", "90"))
+EVAL_RETRIES = int(os.getenv("LIBRARIAN_SWIFT_EVAL_RETRIES", "2"))
+EVAL_RETRY_BACKOFF_SEC = float(os.getenv("LIBRARIAN_SWIFT_EVAL_RETRY_BACKOFF_SEC", "4"))
+EVAL_MAX_TOKENS = int(os.getenv("LIBRARIAN_SWIFT_EVAL_MAX_TOKENS", "256"))
+EVAL_WARMUP_SEC = int(os.getenv("LIBRARIAN_SWIFT_EVAL_WARMUP_SEC", "6"))
 EVAL_MIN_DELTA = float(os.getenv("LIBRARIAN_SWIFT_EVAL_MIN_DELTA", "0.03"))
 EVAL_CANDIDATE_MODEL = os.getenv("LIBRARIAN_SWIFT_EVAL_CANDIDATE_MODEL", "").strip()
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -113,21 +117,60 @@ def _ask_ollama(model: str, prompt: str) -> str:
     payload = {
         "model": model,
         "stream": False,
+        "options": {
+            "num_predict": EVAL_MAX_TOKENS,
+            "temperature": 0.2,
+        },
         "messages": [
             {"role": "system", "content": LIBRARIAN_SYSTEM},
             {"role": "user", "content": prompt},
         ],
     }
-    request = urllib.request.Request(
-        f"{OLLAMA_HOST}/api/chat",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
+    last_error = ""
+    attempts = max(EVAL_RETRIES + 1, 1)
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            f"{OLLAMA_HOST}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=EVAL_TIMEOUT_SEC) as response:
+                raw = response.read().decode("utf-8")
+            parsed = json.loads(raw)
+            return parsed.get("message", {}).get("content", "")
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+            last_error = str(exc)
+            if attempt < attempts:
+                time.sleep(EVAL_RETRY_BACKOFF_SEC * attempt)
+            continue
+    raise TimeoutError(last_error or "ollama request failed")
+
+
+def _wait_for_ollama() -> None:
+    request = urllib.request.Request(f"{OLLAMA_HOST}/api/tags", method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=10):
+            return
+    except Exception:
+        # Best effort warm-up only.
+        pass
+
+
+def _resolved_merged_artifact(output_dir: Path, export_dir: Path) -> Path:
+    if export_dir.exists() and any(export_dir.iterdir()):
+        return export_dir
+
+    merged_candidates = sorted(
+        [p for p in output_dir.rglob("checkpoint-*-merged") if p.is_dir()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
     )
-    with urllib.request.urlopen(request, timeout=EVAL_TIMEOUT_SEC) as response:
-        raw = response.read().decode("utf-8")
-    parsed = json.loads(raw)
-    return parsed.get("message", {}).get("content", "")
+    if merged_candidates:
+        return merged_candidates[0]
+
+    return export_dir
 
 
 def _benchmark_cases(topic: str) -> list[dict[str, str]]:
@@ -159,6 +202,7 @@ def _evaluate_model(model: str, topic: str) -> dict:
     details = []
     recalls = []
     latencies = []
+    error_count = 0
     for case in cases:
         t0 = time.time()
         try:
@@ -169,6 +213,7 @@ def _evaluate_model(model: str, topic: str) -> dict:
             output = ""
             status = "error"
             error = str(exc)
+            error_count += 1
         latency = time.time() - t0
         recall = _keyword_recall(case["expected"], output) if status == "ok" else 0.0
         recalls.append(recall)
@@ -189,6 +234,8 @@ def _evaluate_model(model: str, topic: str) -> dict:
         "cases": len(cases),
         "avg_keyword_recall": sum(recalls) / len(recalls),
         "avg_latency_sec": sum(latencies) / len(latencies),
+        "error_count": error_count,
+        "error_rate": error_count / len(cases),
         "elapsed_sec": time.time() - started,
         "status": "ok",
         "details": details,
@@ -218,6 +265,7 @@ def _write_report(report: dict) -> None:
     json_path = REPORTS_ROOT / f"merge_eval_{stamp}.json"
     md_path = REPORTS_ROOT / f"merge_eval_{stamp}.md"
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    candidate_eval = report.get("candidate_eval") or {}
     summary = [
         "# Librarian Merge Evaluation",
         "",
@@ -232,7 +280,9 @@ def _write_report(report: dict) -> None:
         "## Metrics",
         f"- active_avg_keyword_recall: {report['active_eval'].get('avg_keyword_recall', 0.0):.4f}",
         f"- active_avg_latency_sec: {report['active_eval'].get('avg_latency_sec', 0.0):.3f}",
-        f"- candidate_avg_keyword_recall: {report.get('candidate_eval', {}).get('avg_keyword_recall', 0.0):.4f}",
+        f"- candidate_avg_keyword_recall: {candidate_eval.get('avg_keyword_recall', 0.0):.4f}",
+        f"- active_error_rate: {report['active_eval'].get('error_rate', 0.0):.4f}",
+        f"- candidate_error_rate: {candidate_eval.get('error_rate', 0.0):.4f}",
         f"- delta_vs_previous_report: {report.get('delta_vs_previous_report', 0.0):.4f}",
     ]
     md_path.write_text("\n".join(summary) + "\n", encoding="utf-8")
@@ -242,6 +292,10 @@ def _write_report(report: dict) -> None:
 def _evaluate_after_merge(topic: str, merged_artifact: Path) -> None:
     if not EVAL_ON_MERGE:
         return
+
+    if EVAL_WARMUP_SEC > 0:
+        time.sleep(EVAL_WARMUP_SEC)
+    _wait_for_ollama()
 
     previous_score = _last_report_score()
     active_eval = _evaluate_model(OLLAMA_ACTIVE_MODEL, topic)
@@ -392,7 +446,7 @@ def _run_topic(topic: str, hb: HeartbeatThread, force_export: bool = False) -> s
     env.pop("PYTHONNOUSERSITE", None)
     result = subprocess.run(cmd, env=env)
     if result.returncode == 0:
-        target_path = export_dir if do_export else output_dir
+        target_path = _resolved_merged_artifact(output_dir, export_dir) if do_export else output_dir
         LATEST_MERGED_FILE.write_text(str(target_path), encoding="utf-8")
         if do_export:
             try:

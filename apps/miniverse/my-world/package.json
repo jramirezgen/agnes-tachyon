@@ -7,7 +7,8 @@
     "start": "PORT=${PORT:-4331} node server.js",
     "dev": "PORT=${PORT:-4331} concurrently -n vite,server -c cyan,magenta \"vite\" \"node server.js\"",
     "stack:start": "./start_operational_stack.sh",
-    "stack:stop": "./stop_operational_stack.sh"
+    "stack:stop": "./stop_operational_stack.sh",
+    "cc": "./command_center.sh open"
   },
   "dependencies": {
     "@miniverse/core": "^0.2.6",

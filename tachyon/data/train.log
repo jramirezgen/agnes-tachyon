@@ -1,14 +1,14 @@
-run sh: `/home/kaitokid/miniconda3/envs/miniverse-gpu/bin/python /home/kaitokid/skills/ms-swift/swift/cli/sft.py --model Qwen/Qwen2.5-7B-Instruct --use_hf true --tuner_type lora --quant_method bnb --quant_bits 4 --bnb_4bit_compute_dtype bfloat16 --bnb_4bit_quant_type nf4 --bnb_4bit_use_double_quant true --dataset /home/kaitokid/agnes/data/models/librarian_swift/datasets/matemáticas_fundamentales.jsonl --lora_rank 8 --lora_alpha 32 --target_modules all-linear --output_dir /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T040405Z --max_steps 60 --logging_steps 5 --save_steps 12 --per_device_train_batch_size 1 --gradient_accumulation_steps 4 --learning_rate 1e-4 --warmup_ratio 0.05 --torch_dtype bfloat16 --max_length 1024 --report_to none`
+run sh: `/home/kaitokid/miniconda3/envs/miniverse-gpu/bin/python /home/kaitokid/skills/ms-swift/swift/cli/sft.py --model Qwen/Qwen2.5-7B-Instruct --use_hf true --tuner_type lora --quant_method bnb --quant_bits 4 --bnb_4bit_compute_dtype bfloat16 --bnb_4bit_quant_type nf4 --bnb_4bit_use_double_quant true --dataset /home/kaitokid/agnes/data/models/librarian_swift/datasets/matemáticas_fundamentales.jsonl --lora_rank 8 --lora_alpha 32 --target_modules all-linear --output_dir /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z --max_steps 60 --logging_steps 5 --save_steps 12 --per_device_train_batch_size 1 --gradient_accumulation_steps 4 --learning_rate 1e-4 --warmup_ratio 0.05 --torch_dtype bfloat16 --max_length 1024 --report_to none`
 [INFO:swift] Successfully registered `/home/kaitokid/skills/ms-swift/swift/dataset/data/dataset_info.json`.
 [INFO:swift] rank: -1, local_rank: -1, world_size: 1, local_world_size: 1
 [INFO:swift] Downloading the model from HuggingFace Hub, model_id: Qwen/Qwen2.5-7B-Instruct
-Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 91180.52it/s]
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 187245.71it/s]
 [INFO:swift] Loading the model using model_dir: /home/kaitokid/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28
 `torch_dtype` is deprecated! Use `dtype` instead!
 [INFO:swift] Setting args.lazy_tokenize: False
 [INFO:swift] Setting args.dataloader_num_workers: 1
 warmup_ratio is deprecated and will be removed in v5.2. Use `warmup_steps` instead.
-[INFO:swift] output_dir: /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T040405Z/v0-20260417-230413
+[INFO:swift] output_dir: /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638
 [INFO:swift] args: SftArguments(
 acc_strategy=token,
 accelerator_config={'dispatch_batches': False},
@@ -166,7 +166,7 @@ local_repo_path=None,
 log_level=passive,
 log_level_replica=warning,
 log_on_each_node=True,
-logging_dir=/home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T040405Z/v0-20260417-230413/runs,
+logging_dir=/home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/runs,
 logging_first_step=True,
 logging_nan_inf_filter=True,
 logging_steps=5,
@@ -215,7 +215,7 @@ optim=adamw_torch,
 optim_args=None,
 optim_target_modules=None,
 optimizer=None,
-output_dir=/home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T040405Z/v0-20260417-230413,
+output_dir=/home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638,
 packing=False,
 packing_length=None,
 packing_num_proc=1,
@@ -246,7 +246,7 @@ resume_from_checkpoint=None,
 resume_only_model=False,
 rope_scaling=None,
 router_aux_loss_coef=0.0,
-run_name=/home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T040405Z/v0-20260417-230413,
+run_name=/home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638,
 safe_serialization=True,
 save_on_each_node=False,
 save_only_model=False,
@@ -330,7 +330,7 @@ zero_hpz_partition_size=None,
 )
 [INFO:swift] Global seed set to 42
 [INFO:swift] Downloading the model from HuggingFace Hub, model_id: Qwen/Qwen2.5-7B-Instruct
-Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Fetching 14 files: 100%|██████████| 14/14 [00:00<00:00, 101768.21it/s]
+Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Fetching 14 files: 100%|██████████| 14/14 [00:00<00:00, 282308.92it/s]
 [INFO:swift] Loading the model using model_dir: /home/kaitokid/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28
 [INFO:swift] model_kwargs: {'device_map': 'cuda:0', 'quantization_config': BitsAndBytesConfig {
   "_load_in_4bit": true,
@@ -348,4 +348,267 @@ zero_hpz_partition_size=None,
   "quant_method": "bitsandbytes"
 }
 , 'dtype': torch.bfloat16}
-Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:00<01:26,  3.91it/s]Loading weights:   1%|          | 2/339 [00:00<01:03,  5.27it/s]Loading weights:   2%|▏         | 6/339 [00:00<00:21, 15.45it/s]Loading weights:   8%|▊         | 28/339 [00:00<00:04, 74.36it/s]Loading weights:  12%|█▏        | 41/339 [00:00<00:03, 89.54it/s]Loading weights:  16%|█▌        | 54/339 [00:00<00:02, 100.21it/s]Loading weights:  22%|██▏       | 76/339 [00:00<00:02, 127.30it/s]Loading weights:  27%|██▋       | 90/339 [00:01<00:02, 123.65it/s]Loading weights:  33%|███▎      | 112/339 [00:01<00:01, 146.03it/s]Loading weights:  38%|███▊      | 128/339 [00:01<00:01, 141.90it/s]Loading weights:  44%|████▎     | 148/339 [00:01<00:01, 150.49it/s]Loading weights:  48%|████▊     | 164/339 [00:01<00:01, 129.79it/s]Loading weights:  53%|█████▎    | 178/339 [00:01<00:01, 127.37it/s]
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:00<02:05,  2.68it/s]Loading weights:   1%|          | 2/339 [00:00<01:46,  3.16it/s]Loading weights:   1%|▏         | 5/339 [00:00<00:39,  8.56it/s]Loading weights:   5%|▌         | 17/339 [00:00<00:10, 32.19it/s]Loading weights:   9%|▊         | 29/339 [00:01<00:06, 50.49it/s]Loading weights:  12%|█▏        | 41/339 [00:01<00:04, 62.09it/s]Loading weights:  16%|█▌        | 53/339 [00:01<00:04, 71.29it/s]Loading weights:  19%|█▉        | 65/339 [00:01<00:03, 78.24it/s]Loading weights:  23%|██▎       | 77/339 [00:01<00:03, 86.27it/s]Loading weights:  26%|██▋       | 89/339 [00:01<00:02, 90.87it/s]Loading weights:  30%|██▉       | 101/339 [00:01<00:02, 92.71it/s]Loading weights:  33%|███▎      | 113/339 [00:01<00:02, 96.49it/s]Loading weights:  37%|███▋      | 125/339 [00:01<00:02, 99.42it/s]Loading weights:  40%|████      | 137/339 [00:02<00:01, 101.42it/s]Loading weights:  44%|████▍     | 149/339 [00:02<00:01, 102.50it/s]Loading weights:  47%|████▋     | 161/339 [00:02<00:01, 101.42it/s]Loading weights:  51%|█████     | 173/339 [00:02<00:01, 103.08it/s]Loading weights:  55%|█████▍    | 185/339 [00:02<00:01, 103.42it/s]Loading weights:  58%|█████▊    | 197/339 [00:02<00:01, 103.36it/s]Loading weights:  62%|██████▏   | 209/339 [00:02<00:01, 103.24it/s]Loading weights:  65%|██████▌   | 221/339 [00:02<00:01, 103.33it/s]Loading weights:  69%|██████▊   | 233/339 [00:03<00:01, 103.30it/s]Loading weights:  72%|███████▏  | 245/339 [00:03<00:00, 103.14it/s]Loading weights:  76%|███████▌  | 257/339 [00:03<00:00, 103.91it/s]Loading weights:  79%|███████▉  | 269/339 [00:03<00:00, 103.36it/s]Loading weights:  83%|████████▎ | 281/339 [00:03<00:00, 102.79it/s]Loading weights:  86%|████████▋ | 293/339 [00:03<00:00, 103.47it/s]Loading weights:  90%|████████▉ | 305/339 [00:03<00:00, 103.80it/s]Loading weights:  94%|█████████▎| 317/339 [00:03<00:00, 101.13it/s]Loading weights:  97%|█████████▋| 329/339 [00:03<00:00, 99.87it/s] Loading weights: 100%|██████████| 339/339 [00:04<00:00, 84.63it/s]
+[INFO:swift] model_info: ModelInfo(model_type='qwen2', model_dir='/home/kaitokid/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28', torch_dtype=torch.bfloat16, max_model_len=32768, quant_method='bnb', quant_bits=4, rope_scaling={'rope_theta': 1000000.0, 'rope_type': 'default'}, is_moe_model=False, is_multimodal=False, config=Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "bos_token_id": 151643,
+  "dtype": "bfloat16",
+  "eos_token_id": 151645,
+  "hidden_act": "silu",
+  "hidden_size": 3584,
+  "initializer_range": 0.02,
+  "intermediate_size": 18944,
+  "layer_types": [
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 32768,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 28,
+  "num_hidden_layers": 28,
+  "num_key_value_heads": 4,
+  "pad_token_id": null,
+  "rms_norm_eps": 1e-06,
+  "rope_parameters": {
+    "rope_theta": 1000000.0,
+    "rope_type": "default"
+  },
+  "sliding_window": null,
+  "tie_word_embeddings": false,
+  "transformers_version": "5.5.4",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 152064
+}
+, task_type='causal_lm', num_labels=None)
+[INFO:swift] model.generation_config: GenerationConfig {
+  "bos_token_id": 151643,
+  "do_sample": false,
+  "eos_token_id": [
+    151645,
+    151643
+  ],
+  "length_penalty": 1.0,
+  "max_new_tokens": 64,
+  "num_beams": 1,
+  "pad_token_id": 151643,
+  "repetition_penalty": 1.05,
+  "temperature": 1.0,
+  "top_k": 50,
+  "top_p": 1.0
+}
+
+[INFO:swift] default_system: 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.'
+[INFO:swift] max_length: 1024
+[INFO:swift] response_prefix: ''
+[INFO:swift] agent_template: hermes
+[INFO:swift] Start time of running main: 2026-04-18 00:36:43.876093
+[INFO:swift] swift.__version__: 4.2.0.dev0
+Generating train split: 0 examples [00:00, ? examples/s]Generating train split: 6 examples [00:00, 3805.51 examples/s]
+Map:   0%|          | 0/6 [00:00<?, ? examples/s]Map: 100%|██████████| 6/6 [00:00<00:00, 1856.16 examples/s]
+Map:   0%|          | 0/6 [00:00<?, ? examples/s]Map: 100%|██████████| 6/6 [00:00<00:00, 795.66 examples/s]
+[INFO:swift] train_dataset: Dataset({
+    features: ['messages', 'lengths'],
+    num_rows: 6
+})
+[INFO:swift] val_dataset: None
+[INFO:swift] [INPUT_IDS] [151644, 8948, 198, 36, 416, 1187, 43515, 88162, 10432, 143249, 3001, 409, 350, 610, 24990, 13, 2925, 325, 59925, 134921, 11, 5517, 336, 91255, 379, 75409, 5690, 43801, 390, 19497, 5845, 13249, 2798, 9081, 11, 7437, 77896, 20234, 3655, 15908, 13, 151645, 198, 151644, 872, 198, 8033, 15317, 662, 79720, 655, 7286, 78, 143250, 25, 38596, 9160, 3550, 151645, 198, 151644, 77091, 198, 641, 37596, 11, 264, 38596, 9160, 3550, 374, 264, 1931, 476, 6351, 9179, 1985, 3550, 429, 374, 1083, 264, 4583, 18266, 3550, 448, 5091, 311, 279, 18266, 35472, 553, 279, 9179, 1985, 13, 1084, 4586, 4756, 279, 22240, 315, 21963, 50078, 3550, 311, 23809, 15336, 13, 576, 9179, 1985, 11, 892, 374, 279, 23400, 315, 279, 12756, 1985, 504, 4621, 82668, 11, 6147, 28316, 323, 25941, 311, 387, 4512, 13, 23405, 11, 79314, 3363, 429, 1052, 525, 3322, 13388, 304, 279, 3550, 311, 2138, 279, 12538, 315, 82668, 311, 387, 1483, 13, 362, 38596, 9160, 3550, 374, 264, 3281, 1142, 315, 264, 22730, 610, 3550, 13, 151645, 198]
+[INFO:swift] [INPUT] <|im_start|>system
+Eres la bibliotecaria científica de Tachyon. Enseñas física, matemáticas y estructura conceptual con claridad rigurosa, sin perder precisión formal.<|im_end|>
+<|im_start|>user
+Explica en detalle el concepto científico: Hilbert space<|im_end|>
+<|im_start|>assistant
+In mathematics, a Hilbert space is a real or complex inner product space that is also a complete metric space with respect to the metric induced by the inner product. It generalizes the notion of Euclidean space to infinite dimensions. The inner product, which is the analog of the dot product from vector calculus, allows lengths and angles to be defined. Furthermore, completeness means that there are enough limits in the space to allow the techniques of calculus to be used. A Hilbert space is a special case of a Banach space.<|im_end|>
+
+[INFO:swift] [LABELS_IDS] [-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 641, 37596, 11, 264, 38596, 9160, 3550, 374, 264, 1931, 476, 6351, 9179, 1985, 3550, 429, 374, 1083, 264, 4583, 18266, 3550, 448, 5091, 311, 279, 18266, 35472, 553, 279, 9179, 1985, 13, 1084, 4586, 4756, 279, 22240, 315, 21963, 50078, 3550, 311, 23809, 15336, 13, 576, 9179, 1985, 11, 892, 374, 279, 23400, 315, 279, 12756, 1985, 504, 4621, 82668, 11, 6147, 28316, 323, 25941, 311, 387, 4512, 13, 23405, 11, 79314, 3363, 429, 1052, 525, 3322, 13388, 304, 279, 3550, 311, 2138, 279, 12538, 315, 82668, 311, 387, 1483, 13, 362, 38596, 9160, 3550, 374, 264, 3281, 1142, 315, 264, 22730, 610, 3550, 13, 151645, 198]
+[INFO:swift] [LABELS] [-100 * 63]In mathematics, a Hilbert space is a real or complex inner product space that is also a complete metric space with respect to the metric induced by the inner product. It generalizes the notion of Euclidean space to infinite dimensions. The inner product, which is the analog of the dot product from vector calculus, allows lengths and angles to be defined. Furthermore, completeness means that there are enough limits in the space to allow the techniques of calculus to be used. A Hilbert space is a special case of a Banach space.<|im_end|>
+
+[INFO:swift] Dataset Token Length: 206.166667±44.186788, min=165.000000, max=272.000000, size=6
+[INFO:swift] The SftArguments will be saved in: /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/args.json
+[INFO:swift] lora_config: LoraConfig(task_type='CAUSAL_LM', peft_type=<PeftType.LORA: 'LORA'>, auto_mapping=None, peft_version='0.18.1', base_model_name_or_path='/home/kaitokid/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28', revision=None, inference_mode=False, r=8, target_modules={'up_proj', 'q_proj', 'v_proj', 'gate_proj', 'o_proj', 'k_proj', 'down_proj'}, exclude_modules=None, lora_alpha=32, lora_dropout=0.05, fan_in_fan_out=False, bias='none', use_rslora=False, modules_to_save=[], init_lora_weights=True, layers_to_transform=None, layers_pattern=None, rank_pattern={}, alpha_pattern={}, megatron_config=None, megatron_core='megatron.core', trainable_token_indices=None, loftq_config={}, eva_config=None, corda_config=None, use_dora=False, alora_invocation_tokens=None, use_qalora=False, qalora_group_size=16, layer_replication=None, runtime_config=LoraRuntimeConfig(ephemeral_gpu_offload=False), lora_bias=False, target_parameters=None, arrow_config=None, ensure_weight_tying=False, lora_dtype=None, lorap_lr_ratio=None, lorap_emb_lr=1e-06)
+[INFO:swift] model: PeftModelForCausalLM(
+  (base_model): LoraModel(
+    (model): Qwen2ForCausalLM(
+      (model): Qwen2Model(
+        (embed_tokens): Embedding(152064, 3584)
+        (layers): ModuleList(
+          (0-27): 28 x Qwen2DecoderLayer(
+            (self_attn): Qwen2Attention(
+              (q_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=3584, out_features=3584, bias=True)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=3584, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=3584, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+              (k_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=3584, out_features=512, bias=True)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=3584, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=512, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+              (v_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=3584, out_features=512, bias=True)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=3584, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=512, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+              (o_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=3584, out_features=3584, bias=False)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=3584, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=3584, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+            )
+            (mlp): Qwen2MLP(
+              (gate_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=3584, out_features=18944, bias=False)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=3584, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=18944, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+              (up_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=3584, out_features=18944, bias=False)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=3584, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=18944, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+              (down_proj): lora.Linear4bit(
+                (base_layer): Linear4bit(in_features=18944, out_features=3584, bias=False)
+                (lora_dropout): ModuleDict(
+                  (default): Dropout(p=0.05, inplace=False)
+                )
+                (lora_A): ModuleDict(
+                  (default): Linear(in_features=18944, out_features=8, bias=False)
+                )
+                (lora_B): ModuleDict(
+                  (default): Linear(in_features=8, out_features=3584, bias=False)
+                )
+                (lora_embedding_A): ParameterDict()
+                (lora_embedding_B): ParameterDict()
+                (lora_magnitude_vector): ModuleDict()
+              )
+              (act_fn): SiLUActivation()
+            )
+            (input_layernorm): Qwen2RMSNorm((3584,), eps=1e-06)
+            (post_attention_layernorm): Qwen2RMSNorm((3584,), eps=1e-06)
+          )
+        )
+        (norm): Qwen2RMSNorm((3584,), eps=1e-06)
+        (rotary_emb): Qwen2RotaryEmbedding()
+      )
+      (lm_head): Linear(in_features=3584, out_features=152064, bias=False)
+    )
+  )
+)
+[INFO:swift] model_parameter_info: PeftModelForCausalLM: 4373.1574M Params (20.1851M Trainable [0.4616%]), 0.0001M Buffers.
+[INFO:swift] use_reentrant: True
+[INFO:swift] The logging file will be saved in: /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/logging.jsonl
+The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None}.
+Train:   0%|          | 0/60 [00:00<?, ?it/s][INFO:swift] use_logits_to_keep: True
+Train:   2%|▏         | 1/60 [00:04<04:21,  4.44s/it]                                                     Train:   2%|▏         | 1/60 [00:04<04:21,  4.44s/it]Train:   2%|▏         | 1/60 [00:04<04:21,  4.44s/it]Train:   3%|▎         | 2/60 [00:06<02:40,  2.76s/it]{'loss': '1.419', 'grad_norm': '2.047', 'learning_rate': '3.333e-05', 'token_acc': '0.6992', 'epoch': '0.6667', 'global_step/max_steps': '1/60', 'elapsed_time': '4s', 'remaining_time': '4m 22s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '4.44'}
+Train:   5%|▌         | 3/60 [00:09<02:56,  3.09s/it]Train:   7%|▋         | 4/60 [00:11<02:25,  2.60s/it]Train:   8%|▊         | 5/60 [00:15<02:46,  3.02s/it]                                                     Train:   8%|▊         | 5/60 [00:15<02:46,  3.02s/it]Train:   8%|▊         | 5/60 [00:15<02:46,  3.02s/it]Train:  10%|█         | 6/60 [00:16<02:16,  2.53s/it]{'loss': '1.215', 'grad_norm': '1.696', 'learning_rate': '9.97e-05', 'token_acc': '0.7312', 'epoch': '2.667', 'global_step/max_steps': '5/60', 'elapsed_time': '15s', 'remaining_time': '2m 46s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '3.025'}
+Train:  12%|█▏        | 7/60 [00:19<02:24,  2.73s/it]Train:  13%|█▎        | 8/60 [00:21<02:11,  2.53s/it]Train:  15%|█▌        | 9/60 [00:25<02:22,  2.80s/it]Train:  17%|█▋        | 10/60 [00:27<02:06,  2.53s/it]                                                      Train:  17%|█▋        | 10/60 [00:27<02:06,  2.53s/it]Train:  17%|█▋        | 10/60 [00:27<02:06,  2.53s/it]{'loss': '0.6007', 'grad_norm': '1.409', 'learning_rate': '9.632e-05', 'token_acc': '0.8581', 'epoch': '5', 'global_step/max_steps': '10/60', 'elapsed_time': '27s', 'remaining_time': '2m 16s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.726'}
+Train:  18%|█▊        | 11/60 [00:28<01:46,  2.18s/it]Train:  20%|██        | 12/60 [00:30<01:39,  2.08s/it][INFO:swift] Saving model checkpoint to /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/checkpoint-12
+Train:  22%|██▏       | 13/60 [00:34<02:09,  2.75s/it]Train:  23%|██▎       | 14/60 [00:36<01:50,  2.40s/it]Train:  25%|██▌       | 15/60 [00:39<02:02,  2.73s/it]                                                      Train:  25%|██▌       | 15/60 [00:39<02:02,  2.73s/it]Train:  25%|██▌       | 15/60 [00:39<02:02,  2.73s/it]Train:  27%|██▋       | 16/60 [00:41<01:48,  2.46s/it]{'loss': '0.2925', 'grad_norm': '0.8159', 'learning_rate': '8.946e-05', 'token_acc': '0.9191', 'epoch': '7.667', 'global_step/max_steps': '15/60', 'elapsed_time': '40s', 'remaining_time': '1m 60s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.659'}
+Train:  28%|██▊       | 17/60 [00:45<01:59,  2.78s/it]Train:  30%|███       | 18/60 [00:47<01:44,  2.49s/it]Train:  32%|███▏      | 19/60 [00:50<01:57,  2.87s/it]Train:  33%|███▎      | 20/60 [00:52<01:39,  2.48s/it]                                                      Train:  33%|███▎      | 20/60 [00:52<01:39,  2.48s/it]Train:  33%|███▎      | 20/60 [00:52<01:39,  2.48s/it]{'loss': '0.09444', 'grad_norm': '0.3033', 'learning_rate': '7.961e-05', 'token_acc': '0.976', 'epoch': '10', 'global_step/max_steps': '20/60', 'elapsed_time': '52s', 'remaining_time': '1m 45s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.62'}
+Train:  35%|███▌      | 21/60 [00:55<01:48,  2.78s/it]Train:  37%|███▋      | 22/60 [00:57<01:34,  2.49s/it]Train:  38%|███▊      | 23/60 [00:59<01:24,  2.29s/it]Train:  40%|████      | 24/60 [01:01<01:13,  2.05s/it][INFO:swift] Saving model checkpoint to /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/checkpoint-24
+Train:  42%|████▏     | 25/60 [01:05<01:33,  2.67s/it]                                                      Train:  42%|████▏     | 25/60 [01:05<01:33,  2.67s/it]Train:  42%|████▏     | 25/60 [01:05<01:33,  2.67s/it]Train:  43%|████▎     | 26/60 [01:07<01:23,  2.45s/it]{'loss': '0.02246', 'grad_norm': '0.1844', 'learning_rate': '6.753e-05', 'token_acc': '0.9964', 'epoch': '12.67', 'global_step/max_steps': '25/60', 'elapsed_time': '1m 5s', 'remaining_time': '1m 31s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.605'}
+Train:  45%|████▌     | 27/60 [01:10<01:28,  2.67s/it]Train:  47%|████▋     | 28/60 [01:12<01:21,  2.54s/it]Train:  48%|████▊     | 29/60 [01:16<01:31,  2.96s/it]Train:  50%|█████     | 30/60 [01:17<01:15,  2.52s/it]                                                      Train:  50%|█████     | 30/60 [01:17<01:15,  2.52s/it]Train:  50%|█████     | 30/60 [01:17<01:15,  2.52s/it]{'loss': '0.00328', 'grad_norm': '0.02011', 'learning_rate': '5.413e-05', 'token_acc': '1', 'epoch': '15', 'global_step/max_steps': '30/60', 'elapsed_time': '1m 18s', 'remaining_time': '1m 18s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.598'}
+Train:  52%|█████▏    | 31/60 [01:21<01:22,  2.85s/it]Train:  53%|█████▎    | 32/60 [01:23<01:11,  2.55s/it]Train:  55%|█████▌    | 33/60 [01:26<01:17,  2.86s/it]Train:  57%|█████▋    | 34/60 [01:28<01:06,  2.56s/it]Train:  58%|█████▊    | 35/60 [01:30<00:55,  2.22s/it]                                                      Train:  58%|█████▊    | 35/60 [01:30<00:55,  2.22s/it]Train:  58%|█████▊    | 35/60 [01:30<00:55,  2.22s/it]Train:  60%|██████    | 36/60 [01:32<00:50,  2.11s/it][INFO:swift] Saving model checkpoint to /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/checkpoint-36
+{'loss': '0.001743', 'grad_norm': '0.02473', 'learning_rate': '4.041e-05', 'token_acc': '1', 'epoch': '17.67', 'global_step/max_steps': '35/60', 'elapsed_time': '1m 30s', 'remaining_time': '1m 4s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.579'}
+Train:  62%|██████▏   | 37/60 [01:36<01:07,  2.94s/it]Train:  63%|██████▎   | 38/60 [01:38<00:55,  2.51s/it]Train:  65%|██████▌   | 39/60 [01:42<00:59,  2.83s/it]Train:  67%|██████▋   | 40/60 [01:43<00:50,  2.53s/it]                                                      Train:  67%|██████▋   | 40/60 [01:43<00:50,  2.53s/it]Train:  67%|██████▋   | 40/60 [01:43<00:50,  2.53s/it]{'loss': '0.001131', 'grad_norm': '0.03684', 'learning_rate': '2.742e-05', 'token_acc': '1', 'epoch': '20', 'global_step/max_steps': '40/60', 'elapsed_time': '1m 44s', 'remaining_time': '52s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.598'}
+Train:  68%|██████▊   | 41/60 [01:47<00:54,  2.84s/it]Train:  70%|███████   | 42/60 [01:49<00:45,  2.55s/it]Train:  72%|███████▏  | 43/60 [01:53<00:50,  2.96s/it]Train:  73%|███████▎  | 44/60 [01:54<00:40,  2.53s/it]Train:  75%|███████▌  | 45/60 [01:58<00:42,  2.86s/it]                                                      Train:  75%|███████▌  | 45/60 [01:58<00:42,  2.86s/it]Train:  75%|███████▌  | 45/60 [01:58<00:42,  2.86s/it]Train:  77%|███████▋  | 46/60 [02:00<00:35,  2.56s/it]{'loss': '0.0008197', 'grad_norm': '0.0113', 'learning_rate': '1.614e-05', 'token_acc': '1', 'epoch': '22.67', 'global_step/max_steps': '45/60', 'elapsed_time': '1m 58s', 'remaining_time': '39s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.632'}
+Train:  78%|███████▊  | 47/60 [02:01<00:29,  2.24s/it]Train:  80%|████████  | 48/60 [02:03<00:25,  2.12s/it][INFO:swift] Saving model checkpoint to /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/checkpoint-48
+Train:  82%|████████▏ | 49/60 [02:08<00:32,  2.98s/it]Train:  83%|████████▎ | 50/60 [02:10<00:26,  2.63s/it]                                                      Train:  83%|████████▎ | 50/60 [02:10<00:26,  2.63s/it]Train:  83%|████████▎ | 50/60 [02:10<00:26,  2.63s/it]{'loss': '0.0008112', 'grad_norm': '0.008283', 'learning_rate': '7.4e-06', 'token_acc': '1', 'epoch': '25', 'global_step/max_steps': '50/60', 'elapsed_time': '2m 10s', 'remaining_time': '26s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.608'}
+Train:  85%|████████▌ | 51/60 [02:14<00:27,  3.05s/it]Train:  87%|████████▋ | 52/60 [02:16<00:22,  2.75s/it]Train:  88%|████████▊ | 53/60 [02:20<00:22,  3.16s/it]Train:  90%|█████████ | 54/60 [02:22<00:17,  2.84s/it]Train:  92%|█████████▏| 55/60 [02:26<00:16,  3.27s/it]                                                      Train:  92%|█████████▏| 55/60 [02:26<00:16,  3.27s/it]Train:  92%|█████████▏| 55/60 [02:26<00:16,  3.27s/it]Train:  93%|█████████▎| 56/60 [02:28<00:11,  2.82s/it]{'loss': '0.0008105', 'grad_norm': '0.01341', 'learning_rate': '1.89e-06', 'token_acc': '1', 'epoch': '27.67', 'global_step/max_steps': '55/60', 'elapsed_time': '2m 27s', 'remaining_time': '13s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.673'}
+Train:  95%|█████████▌| 57/60 [02:30<00:07,  2.39s/it]Train:  97%|█████████▋| 58/60 [02:31<00:04,  2.20s/it]Train:  98%|█████████▊| 59/60 [02:35<00:02,  2.64s/it]Train: 100%|██████████| 60/60 [02:36<00:00,  2.27s/it]                                                      Train: 100%|██████████| 60/60 [02:36<00:00,  2.27s/it]Train: 100%|██████████| 60/60 [02:36<00:00,  2.27s/it][INFO:swift] Saving model checkpoint to /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/checkpoint-60
+                                                      Train: 100%|██████████| 60/60 [02:37<00:00,  2.27s/it]Train: 100%|██████████| 60/60 [02:37<00:00,  2.27s/it]Train: 100%|██████████| 60/60 [02:37<00:00,  2.63s/it]
+[INFO:swift] last_model_checkpoint: /home/kaitokid/agnes/data/models/librarian_swift/runs/matemáticas_fundamentales_20260418T053630Z/v0-20260418-003638/checkpoint-60
+[INFO:swift] best_model_checkpoint: None
+[INFO:swift] End time of running main: 2026-04-18 00:39:23.566269
+{'loss': '0.0005794', 'grad_norm': '0.007772', 'learning_rate': '0', 'token_acc': '1', 'epoch': '30', 'global_step/max_steps': '60/60', 'elapsed_time': '2m 37s', 'remaining_time': '0s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.616'}
+{'train_runtime': '158', 'train_samples_per_second': '1.519', 'train_steps_per_second': '0.38', 'train_loss': '0.1896', 'epoch': '30', 'global_step/max_steps': '60/60', 'elapsed_time': '2m 38s', 'remaining_time': '0s', 'memory(GiB)': '6.3', 'train_speed(s/it)': '2.633'}

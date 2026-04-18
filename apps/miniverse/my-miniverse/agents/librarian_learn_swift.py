@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,13 +35,26 @@ EXPORT_MERGED = os.getenv("LIBRARIAN_SWIFT_EXPORT_MERGED", "0") == "1"
 MAX_ROUNDS = int(os.getenv("LIBRARIAN_SWIFT_MAX_ROUNDS", "1"))
 KEEP_RUNS = int(os.getenv("LIBRARIAN_SWIFT_KEEP_RUNS", "3"))
 KEEP_MERGED = int(os.getenv("LIBRARIAN_SWIFT_KEEP_MERGED", "2"))
+EVAL_ON_MERGE = os.getenv("LIBRARIAN_SWIFT_EVAL_ON_MERGE", "1") == "1"
+EVAL_CASES = int(os.getenv("LIBRARIAN_SWIFT_EVAL_CASES", "6"))
+EVAL_TIMEOUT_SEC = int(os.getenv("LIBRARIAN_SWIFT_EVAL_TIMEOUT_SEC", "90"))
+EVAL_MIN_DELTA = float(os.getenv("LIBRARIAN_SWIFT_EVAL_MIN_DELTA", "0.03"))
+EVAL_CANDIDATE_MODEL = os.getenv("LIBRARIAN_SWIFT_EVAL_CANDIDATE_MODEL", "").strip()
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_ACTIVE_MODEL = os.getenv("OLLAMA_MODEL", "tachyon:latest")
+MERGE_INTERVAL_SEC = int(os.getenv("LIBRARIAN_MERGE_INTERVAL_SEC", "10800"))  # 3 horas
+SYNC_SKILLS = os.getenv("LIBRARIAN_SYNC_SKILLS", "1") == "1"
+SYNC_REPO = os.getenv("LIBRARIAN_SYNC_REPO", "1") == "1"
+SKILLS_DIR = Path.home() / "skills" / "miniverse"
 
 MODELS_ROOT = AGNES_DATA_DIR / "models"
 SWIFT_ROOT = MODELS_ROOT / "librarian_swift"
 DATASET_ROOT = SWIFT_ROOT / "datasets"
 RUNS_ROOT = SWIFT_ROOT / "runs"
 MERGED_ROOT = SWIFT_ROOT / "merged"
+REPORTS_ROOT = SWIFT_ROOT / "reports"
 LATEST_MERGED_FILE = SWIFT_ROOT / "LATEST_MERGED_MODEL.txt"
+LATEST_REPORT_FILE = REPORTS_ROOT / "LATEST_EVAL_REPORT.txt"
 PID_FILE = Path("/tmp/librarian_learning.pid")
 
 LIBRARIAN_SYSTEM = (
@@ -78,7 +93,268 @@ def _write_dataset(topic: str) -> Path:
     return dataset_path
 
 
-def _run_topic(topic: str, hb: HeartbeatThread) -> str | None:
+def _normalize_tokens(text: str) -> set[str]:
+    cleaned = []
+    for char in text.lower():
+        cleaned.append(char if char.isalnum() or char.isspace() else " ")
+    return {tok for tok in "".join(cleaned).split() if len(tok) > 2}
+
+
+def _keyword_recall(reference: str, prediction: str) -> float:
+    ref_tokens = _normalize_tokens(reference)
+    if not ref_tokens:
+        return 0.0
+    pred_tokens = _normalize_tokens(prediction)
+    common = len(ref_tokens.intersection(pred_tokens))
+    return common / max(len(ref_tokens), 1)
+
+
+def _ask_ollama(model: str, prompt: str) -> str:
+    payload = {
+        "model": model,
+        "stream": False,
+        "messages": [
+            {"role": "system", "content": LIBRARIAN_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+    }
+    request = urllib.request.Request(
+        f"{OLLAMA_HOST}/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=EVAL_TIMEOUT_SEC) as response:
+        raw = response.read().decode("utf-8")
+    parsed = json.loads(raw)
+    return parsed.get("message", {}).get("content", "")
+
+
+def _benchmark_cases(topic: str) -> list[dict[str, str]]:
+    cases: list[dict[str, str]] = []
+    for record in _topic_records(topic)[: max(EVAL_CASES, 1)]:
+        messages = record.get("messages", [])
+        if len(messages) < 3:
+            continue
+        cases.append({
+            "prompt": messages[1].get("content", ""),
+            "expected": messages[2].get("content", ""),
+        })
+    return cases
+
+
+def _evaluate_model(model: str, topic: str) -> dict:
+    started = time.time()
+    cases = _benchmark_cases(topic)
+    if not cases:
+        return {
+            "model": model,
+            "cases": 0,
+            "avg_keyword_recall": 0.0,
+            "avg_latency_sec": 0.0,
+            "status": "no_cases",
+            "details": [],
+        }
+
+    details = []
+    recalls = []
+    latencies = []
+    for case in cases:
+        t0 = time.time()
+        try:
+            output = _ask_ollama(model, case["prompt"])
+            status = "ok"
+            error = ""
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+            output = ""
+            status = "error"
+            error = str(exc)
+        latency = time.time() - t0
+        recall = _keyword_recall(case["expected"], output) if status == "ok" else 0.0
+        recalls.append(recall)
+        latencies.append(latency)
+        details.append({
+            "prompt": case["prompt"],
+            "expected": case["expected"],
+            "output": output,
+            "keyword_recall": recall,
+            "latency_sec": latency,
+            "status": status,
+            "error": error,
+        })
+
+    return {
+        "model": model,
+        "topic": topic,
+        "cases": len(cases),
+        "avg_keyword_recall": sum(recalls) / len(recalls),
+        "avg_latency_sec": sum(latencies) / len(latencies),
+        "elapsed_sec": time.time() - started,
+        "status": "ok",
+        "details": details,
+    }
+
+
+def _last_report_score() -> float | None:
+    if not REPORTS_ROOT.exists():
+        return None
+    reports = sorted(REPORTS_ROOT.glob("merge_eval_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for report in reports:
+        try:
+            payload = json.loads(report.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        candidate = payload.get("candidate_eval") or {}
+        active = payload.get("active_eval") or {}
+        score = candidate.get("avg_keyword_recall") if candidate else active.get("avg_keyword_recall")
+        if isinstance(score, (int, float)):
+            return float(score)
+    return None
+
+
+def _write_report(report: dict) -> None:
+    REPORTS_ROOT.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    json_path = REPORTS_ROOT / f"merge_eval_{stamp}.json"
+    md_path = REPORTS_ROOT / f"merge_eval_{stamp}.md"
+    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    summary = [
+        "# Librarian Merge Evaluation",
+        "",
+        f"- timestamp_utc: {report['timestamp_utc']}",
+        f"- topic: {report['topic']}",
+        f"- merged_artifact: {report['merged_artifact']}",
+        f"- active_model: {report['active_model']}",
+        f"- candidate_model: {report.get('candidate_model') or 'n/a'}",
+        f"- decision: {report['decision']}",
+        f"- reason: {report['reason']}",
+        "",
+        "## Metrics",
+        f"- active_avg_keyword_recall: {report['active_eval'].get('avg_keyword_recall', 0.0):.4f}",
+        f"- active_avg_latency_sec: {report['active_eval'].get('avg_latency_sec', 0.0):.3f}",
+        f"- candidate_avg_keyword_recall: {report.get('candidate_eval', {}).get('avg_keyword_recall', 0.0):.4f}",
+        f"- delta_vs_previous_report: {report.get('delta_vs_previous_report', 0.0):.4f}",
+    ]
+    md_path.write_text("\n".join(summary) + "\n", encoding="utf-8")
+    LATEST_REPORT_FILE.write_text(str(json_path), encoding="utf-8")
+
+
+def _evaluate_after_merge(topic: str, merged_artifact: Path) -> None:
+    if not EVAL_ON_MERGE:
+        return
+
+    previous_score = _last_report_score()
+    active_eval = _evaluate_model(OLLAMA_ACTIVE_MODEL, topic)
+    candidate_eval = None
+    if EVAL_CANDIDATE_MODEL:
+        candidate_eval = _evaluate_model(EVAL_CANDIDATE_MODEL, topic)
+
+    current_score = (
+        candidate_eval.get("avg_keyword_recall", 0.0)
+        if candidate_eval
+        else active_eval.get("avg_keyword_recall", 0.0)
+    )
+    delta = current_score - previous_score if previous_score is not None else 0.0
+
+    if candidate_eval:
+        active_score = active_eval.get("avg_keyword_recall", 0.0)
+        candidate_score = candidate_eval.get("avg_keyword_recall", 0.0)
+        gain = candidate_score - active_score
+        if gain >= EVAL_MIN_DELTA:
+            decision = "promote_candidate"
+            reason = f"candidate beats active by {gain:.4f}"
+        else:
+            decision = "hold"
+            reason = f"candidate gain {gain:.4f} below threshold {EVAL_MIN_DELTA:.4f}"
+    else:
+        decision = "await_candidate_model"
+        reason = "no candidate model configured for direct A/B"
+
+    report = {
+        "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "topic": topic,
+        "merged_artifact": str(merged_artifact),
+        "active_model": OLLAMA_ACTIVE_MODEL,
+        "candidate_model": EVAL_CANDIDATE_MODEL or "",
+        "active_eval": active_eval,
+        "candidate_eval": candidate_eval,
+        "delta_vs_previous_report": delta,
+        "decision": decision,
+        "reason": reason,
+    }
+    _write_report(report)
+
+
+def _sync_skills_dir() -> None:
+    """Sincroniza código operativo de vuelta a ~/skills/miniverse/."""
+    if not SYNC_SKILLS:
+        return
+    if not SKILLS_DIR.exists():
+        print("[librarian-swift] skills/miniverse no existe, saltando sync")
+        return
+    src = str(AGNES_HOME / "apps" / "miniverse") + "/"
+    dst = str(SKILLS_DIR) + "/"
+    result = subprocess.run(
+        [
+            "rsync", "-a", "--delete",
+            "--exclude=.git/", "--exclude=node_modules/",
+            "--exclude=generated/", "--exclude=models/",
+            "--exclude=__pycache__/", "--exclude=dist/",
+            src, dst,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        print("[librarian-swift] Skills local sincronizada")
+    else:
+        print(f"[librarian-swift] rsync skills falló: {result.stderr[:300]}")
+
+
+def _sync_tachyon_repo(topic: str) -> None:
+    """Hace git add+commit+push en AGNES_HOME."""
+    if not SYNC_REPO:
+        return
+    repo = str(AGNES_HOME)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    msg = f"librarian: merge+eval {_safe_name(topic)} @ {stamp}"
+    subprocess.run(["git", "-C", repo, "add", "-A"], capture_output=True)
+    r_commit = subprocess.run(
+        ["git", "-C", repo, "commit", "-m", msg],
+        capture_output=True,
+        text=True,
+    )
+    if "nothing to commit" in r_commit.stdout or "nothing to commit" in r_commit.stderr:
+        print("[librarian-swift] repo sin cambios nuevos, skip push")
+        return
+    r_push = subprocess.run(
+        ["git", "-C", repo, "push"],
+        capture_output=True,
+        text=True,
+    )
+    if r_push.returncode == 0:
+        print(f"[librarian-swift] Repo Tachyon actualizado: {msg}")
+    else:
+        print(f"[librarian-swift] push falló: {r_push.stderr[:300]}")
+
+
+def _post_merge_sync(topic: str, hb: HeartbeatThread) -> None:
+    """Sincroniza skills y repo tras cada merge programado."""
+    hb.update("working", "Sincronizando skills y repositorio...")
+    speak("Actualizando skills local y repositorio Tachyon")
+    try:
+        _sync_skills_dir()
+    except Exception as exc:
+        print(f"[librarian-swift] sync skills falló: {exc}")
+    try:
+        _sync_tachyon_repo(topic)
+    except Exception as exc:
+        print(f"[librarian-swift] sync repo falló: {exc}")
+    hb.update("idle", f"Ciclo de merge completo: {topic}")
+    speak("Ciclo de merge y sync completo")
+
+
+def _run_topic(topic: str, hb: HeartbeatThread, force_export: bool = False) -> str | None:
     dataset_path = _write_dataset(topic)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output_dir = RUNS_ROOT / f"{_safe_name(topic)}_{stamp}"
@@ -86,8 +362,10 @@ def _run_topic(topic: str, hb: HeartbeatThread) -> str | None:
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     MERGED_ROOT.mkdir(parents=True, exist_ok=True)
 
-    hb.update("working", f"Swift/Qwen aprendiendo {topic}")
-    speak(f"Aprendiendo {topic} con ms-swift")
+    do_export = EXPORT_MERGED or force_export
+
+    hb.update("working", f"Swift/Qwen aprendiendo {topic}{'  [merge]' if force_export else ''}")
+    speak(f"Aprendiendo {topic} con ms-swift{'  [merge programado]' if force_export else ''}")
 
     cmd = [
         TRAINER_PYTHON,
@@ -102,7 +380,7 @@ def _run_topic(topic: str, hb: HeartbeatThread) -> str | None:
         "--output-dir",
         str(output_dir),
     ]
-    if EXPORT_MERGED:
+    if do_export:
         cmd.extend([
             "--export-merged",
             "--export-dir",
@@ -114,8 +392,13 @@ def _run_topic(topic: str, hb: HeartbeatThread) -> str | None:
     env.pop("PYTHONNOUSERSITE", None)
     result = subprocess.run(cmd, env=env)
     if result.returncode == 0:
-        target_path = export_dir if EXPORT_MERGED else output_dir
+        target_path = export_dir if do_export else output_dir
         LATEST_MERGED_FILE.write_text(str(target_path), encoding="utf-8")
+        if do_export:
+            try:
+                _evaluate_after_merge(topic, target_path)
+            except Exception as exc:
+                print(f"[librarian-swift] Post-merge evaluation failed: {exc}")
         hb.update("speaking", f"Conocimiento consolidado: {target_path.name}")
         speak(f"Consolidación completa en {target_path.name}")
         return str(target_path)
@@ -162,11 +445,19 @@ def main() -> int:
     heartbeat("working", "Bibliotecaria ms-swift iniciada")
 
     rounds = 0
+    # Forzar primer merge al iniciar (last_merge_time=0 garantiza que el primer topic dispare)
+    last_merge_time: float = time.time() - MERGE_INTERVAL_SEC
+    print(f"[librarian-swift] Intervalo de merge: {MERGE_INTERVAL_SEC}s ({MERGE_INTERVAL_SEC // 3600}h)")
     try:
         while True:
             rounds += 1
             for topic in TOPIC_ORDER:
-                _run_topic(topic, hb)
+                now = time.time()
+                force_merge = (now - last_merge_time) >= MERGE_INTERVAL_SEC
+                merged = _run_topic(topic, hb, force_export=force_merge)
+                if force_merge and merged:
+                    _post_merge_sync(topic, hb)
+                    last_merge_time = time.time()
                 _prune_old_dirs(RUNS_ROOT, "*", KEEP_RUNS)
                 _prune_old_dirs(MERGED_ROOT, "merged_from_*", KEEP_MERGED)
                 time.sleep(PAUSE_BETWEEN_TOPICS)

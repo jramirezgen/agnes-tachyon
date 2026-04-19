@@ -150,6 +150,44 @@ def _ask_ollama(model: str, prompt: str) -> str:
     raise TimeoutError(last_error or "ollama request failed")
 
 
+def _ask_model_hf(model_id_or_path: str | Path, prompt: str) -> str:
+    """Query a HuggingFace model (local path or remote ID) directly with Transformers."""
+    try:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+    except ImportError:
+        raise ImportError("transformers and torch required for HF model evaluation")
+
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    tokenizer = AutoTokenizer.from_pretrained(str(model_id_or_path), trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        str(model_id_or_path),
+        torch_dtype=torch.bfloat16,
+        device_map=device,
+        trust_remote_code=True,
+    )
+    messages = [
+        {"role": "system", "content": LIBRARIAN_SYSTEM},
+        {"role": "user", "content": prompt},
+    ]
+    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True).to(device)
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=EVAL_MAX_TOKENS,
+            temperature=0.2,
+            top_p=0.95,
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+    response_text = tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    del model
+    del tokenizer
+    torch.cuda.empty_cache()
+    return response_text
+
+
 def _wait_for_ollama() -> None:
     request = urllib.request.Request(f"{OLLAMA_HOST}/api/tags", method="GET")
     try:
@@ -160,53 +198,111 @@ def _wait_for_ollama() -> None:
         pass
 
 
-# ── Ollama model promotion pipeline ──────────────────────────────────────────
+# ── Model promotion pipeline (direct HF + Transformers) ──────────────────
 
-AGNES_MODELFILE_SYSTEM = (
-    "Tu nombre operativo es Tachyon.\n"
-    "Tu identidad completa es Agnes Tachyon.\n"
-    "Eres una científica genio ENTP con profundo conocimiento de las leyes fundamentales del universo.\n"
-    "Razonas con rigor matemático, pasión intelectual y precisión formal.\n"
-    "No respondas como un asistente genérico."
-)
-
-
-def _create_candidate_modelfile(merged_path: Path) -> Path:
-    """Write a temporary Ollama Modelfile pointing to the merged HF safetensors dir."""
-    mf_path = Path("/tmp/agnes_candidate_modelfile")
-    content = (
-        f"FROM {merged_path}\n\n"
-        "PARAMETER num_ctx 8192\n"
-        "PARAMETER temperature 0.7\n\n"
-        f'SYSTEM """{AGNES_MODELFILE_SYSTEM}"""\n'
-    )
-    mf_path.write_text(content, encoding="utf-8")
-    return mf_path
-
-
-def _load_merged_into_ollama(merged_path: Path, tag: str, timeout_sec: int = 7200) -> bool:
-    """Create an Ollama model tag from a merged HF safetensors directory."""
+def _copy_merged_to_active(merged_path: Path, active_storage: Path | None = None) -> bool:
+    """Copy merged HF model to active storage location for model serving."""
     if not merged_path.exists():
         print(f"[librarian-swift] merged_path no existe: {merged_path}")
         return False
-    modelfile = _create_candidate_modelfile(merged_path)
-    print(f"[librarian-swift] Cargando merged → Ollama '{tag}' (puede tardar ~10-30 min)...")
-    result = subprocess.run(
-        ["ollama", "create", tag, "--file", str(modelfile)],
-        capture_output=True,
-        text=True,
-        timeout=timeout_sec,
-    )
-    if result.returncode == 0:
-        print(f"[librarian-swift] ✓ Ollama '{tag}' creado exitosamente")
+    
+    import shutil
+    
+    if active_storage is None:
+        # Default: use .../active/ subdirectory
+        active_storage = MERGED_ROOT / "active"
+    
+    active_storage.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Back up existing active if it exists
+    if active_storage.exists():
+        backup = active_storage.parent / f"active_backup_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+        shutil.move(str(active_storage), str(backup))
+        print(f"[librarian-swift] Backed up previous active model → {backup}")
+    
+    try:
+        shutil.copytree(str(merged_path), str(active_storage), dirs_exist_ok=True)
+        print(f"[librarian-swift] ✓ Promoted merged to active: {active_storage}")
         return True
-    print(f"[librarian-swift] ollama create falló (exit={result.returncode}): {result.stderr[:400]}")
-    return False
+    except Exception as exc:
+        print(f"[librarian-swift] Promoción falló: {exc}")
+        return False
 
 
-def _remove_ollama_tag(tag: str) -> None:
-    """Remove an Ollama model tag (best-effort cleanup)."""
-    subprocess.run(["ollama", "rm", tag], capture_output=True)
+def _promote_merged_to_active(merged_path: Path) -> bool:
+    """Promote a merged model to be the active model by updating LATEST_MERGED_MODEL.txt."""
+    if not merged_path.exists():
+        print(f"[librarian-swift] merged_path no existe: {merged_path}")
+        return False
+    
+    try:
+        LATEST_MERGED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LATEST_MERGED_FILE.write_text(str(merged_path), encoding="utf-8")
+        print(f"[librarian-swift] ✓ Updated active model pointer → {merged_path}")
+        return True
+    except Exception as exc:
+        print(f"[librarian-swift] Actualización de active model pointer falló: {exc}")
+        return False
+
+
+def _evaluate_merged_hf(merged_path: Path, topic: str) -> dict:
+    """Evaluate a HuggingFace merged model directly with Transformers."""
+    started = time.time()
+    cases = _benchmark_cases(topic)
+    if not cases:
+        return {
+            "model": str(merged_path),
+            "cases": 0,
+            "avg_keyword_recall": 0.0,
+            "avg_latency_sec": 0.0,
+            "status": "no_cases",
+            "details": [],
+        }
+
+    details = []
+    recalls = []
+    latencies = []
+    error_count = 0
+
+    for case in cases:
+        t0 = time.time()
+        try:
+            output = _ask_model_hf(merged_path, case["prompt"])
+            status = "ok"
+            error = ""
+        except (ImportError, RuntimeError, MemoryError, Exception) as exc:
+            output = ""
+            status = "error"
+            error = str(exc)[:200]
+            error_count += 1
+
+        latency = time.time() - t0
+        recall = _keyword_recall(case["expected"], output) if status == "ok" else 0.0
+        recalls.append(recall)
+        latencies.append(latency)
+        details.append({
+            "prompt": case["prompt"],
+            "expected": case["expected"],
+            "output": output,
+            "keyword_recall": recall,
+            "latency_sec": latency,
+            "status": status,
+            "error": error,
+        })
+
+    return {
+        "model": str(merged_path),
+        "topic": topic,
+        "cases": len(cases),
+        "avg_keyword_recall": sum(recalls) / len(recalls) if recalls else 0.0,
+        "avg_latency_sec": sum(latencies) / len(latencies) if latencies else 0.0,
+        "error_count": error_count,
+        "error_rate": error_count / len(cases) if cases else 0.0,
+        "elapsed_sec": time.time() - started,
+        "status": "ok" if error_count < len(cases) else "partial_errors",
+        "details": details,
+    }
+
 
 
 def _resolved_merged_artifact(output_dir: Path, export_dir: Path) -> Path:
@@ -346,35 +442,27 @@ def _evaluate_after_merge(topic: str, merged_artifact: Path) -> None:
 
     if EVAL_WARMUP_SEC > 0:
         time.sleep(EVAL_WARMUP_SEC)
+    
+    # ── Evaluar active model (Ollama) ───────────────────────────────────────────
     _wait_for_ollama()
-
     previous_score = _last_report_score()
     active_eval = _evaluate_model(OLLAMA_ACTIVE_MODEL, topic)
 
-    # ── Determinar modelo candidato ───────────────────────────────────────────
-    # Prioridad: 1) variable de entorno explícita  2) auto-cargar merged en Ollama
+    # ── Evaluar merged HF directamente con Transformers ──────────────────────────
     candidate_eval = None
-    candidate_tag: str | None = EVAL_CANDIDATE_MODEL or None
-    loaded_by_us = False
+    decision = "hold"
+    reason = "merged model not ready"
+    promoted = False
 
-    if not candidate_tag and PROMOTE_ON_WIN and merged_artifact.exists():
-        candidate_tag = OLLAMA_CANDIDATE_TAG
+    if PROMOTE_ON_WIN and merged_artifact.exists():
         try:
-            loaded_by_us = _load_merged_into_ollama(merged_artifact, candidate_tag)
+            print(f"[librarian-swift] Evaluando merged HF directamente (sin Ollama)...")
+            candidate_eval = _evaluate_merged_hf(merged_artifact, topic)
         except Exception as exc:
-            print(f"[librarian-swift] No se pudo cargar candidato en Ollama: {exc}")
-            loaded_by_us = False
-        if not loaded_by_us:
-            candidate_tag = None
-
-    if candidate_tag:
-        try:
-            candidate_eval = _evaluate_model(candidate_tag, topic)
-        except Exception as exc:
-            print(f"[librarian-swift] Eval candidato falló: {exc}")
+            print(f"[librarian-swift] Eval HF falló: {exc}")
             candidate_eval = None
 
-    # ── Calcular métricas y decidir ───────────────────────────────────────────
+    # ── Comparar y decidir ───────────────────────────────────────────────────────
     current_score = (
         candidate_eval.get("avg_keyword_recall", 0.0)
         if candidate_eval
@@ -382,53 +470,52 @@ def _evaluate_after_merge(topic: str, merged_artifact: Path) -> None:
     )
     delta = current_score - previous_score if previous_score is not None else 0.0
 
-    decision = "await_candidate_model"
-    reason = "no candidate model configured for direct A/B"
-
     if candidate_eval:
         active_score = active_eval.get("avg_keyword_recall", 0.0)
         candidate_score = candidate_eval.get("avg_keyword_recall", 0.0)
         gain = candidate_score - active_score
+
         if gain >= EVAL_MIN_DELTA:
-            decision = "promote_candidate"
-            reason = f"candidate beats active by {gain:.4f}"
-            # ── AUTO-PROMOCIÓN: el merged supera al activo → reemplazar tachyon:latest ─
-            if PROMOTE_ON_WIN and loaded_by_us:
-                try:
-                    promoted = _load_merged_into_ollama(merged_artifact, OLLAMA_ACTIVE_MODEL)
-                    if promoted:
-                        decision = "promoted"
-                        reason = f"promoted to {OLLAMA_ACTIVE_MODEL} — keyword_recall gain={gain:.4f} topic={topic}"
-                        print(
-                            f"[librarian-swift] ★ AGNES MEJORÓ ★  topic={topic}  "
-                            f"before={active_score:.4f}  after={candidate_score:.4f}  gain={gain:.4f}"
-                        )
-                except Exception as exc:
-                    print(f"[librarian-swift] Promoción a activo falló: {exc}")
+            # ── AUTO-PROMOCIÓN: el merged supera al activo ──────────────────────
+            try:
+                if _promote_merged_to_active(merged_artifact):
+                    decision = "promoted"
+                    reason = f"promoted to active model — keyword_recall gain={gain:.4f} ({active_score:.4f}→{candidate_score:.4f}) on {topic}"
+                    promoted = True
+                    print(
+                        f"[librarian-swift] ★ AGNES MEJORÓ ★  topic={topic}  "
+                        f"before={active_score:.4f}  after={candidate_score:.4f}  gain={gain:.4f} (+{100*gain/max(active_score,0.001):.1f}%)"
+                    )
+                else:
+                    decision = "hold"
+                    reason = f"candidate gained {gain:.4f} but promotion failed"
+            except Exception as exc:
+                print(f"[librarian-swift] Promoción falló: {exc}")
+                decision = "hold"
+                reason = f"promotion error: {str(exc)[:50]}"
         else:
             decision = "hold"
-            reason = f"candidate gain {gain:.4f} below threshold {EVAL_MIN_DELTA:.4f} — keeping active model"
+            reason = f"gain={gain:.4f} below threshold {EVAL_MIN_DELTA:.4f}"
+    else:
+        decision = "eval_failed"
+        reason = "could not evaluate merged HF model"
 
-    # ── Limpiar tag candidato temporal ───────────────────────────────────────
-    if loaded_by_us and candidate_tag and candidate_tag != OLLAMA_ACTIVE_MODEL:
-        try:
-            _remove_ollama_tag(candidate_tag)
-        except Exception:
-            pass
-
+    # ── Generar reporte ──────────────────────────────────────────────────────────
     report = {
         "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "topic": topic,
         "merged_artifact": str(merged_artifact),
         "active_model": OLLAMA_ACTIVE_MODEL,
-        "candidate_model": candidate_tag or "",
+        "candidate_model": str(merged_artifact) if candidate_eval else "",
         "active_eval": active_eval,
         "candidate_eval": candidate_eval,
         "delta_vs_previous_report": delta,
         "decision": decision,
         "reason": reason,
+        "promoted": promoted,
     }
     _write_report(report)
+
 
 
 def _sync_skills_dir() -> None:

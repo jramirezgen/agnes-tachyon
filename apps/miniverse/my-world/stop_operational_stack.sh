@@ -31,9 +31,10 @@ kill_pid_if_running "$AGENTS_PID"
 kill_pid_if_running "$SERVER_PID"
 
 # Limpiar huérfanos del stack (sesiones antiguas sin PID_FILE válido)
-pkill -f "python3 .*librarian_learn.py" >/dev/null 2>&1 || true
-pkill -f "python3 .*librarian_learn_swift.py" >/dev/null 2>&1 || true
-pkill -f "python3 .*runtime.py" >/dev/null 2>&1 || true
+pkill -f "librarian_learn.py" >/dev/null 2>&1 || true
+pkill -f "librarian_learn_swift.py" >/dev/null 2>&1 || true
+pkill -f "my-miniverse/agents/runtime.py" >/dev/null 2>&1 || true
+pkill -f "swift.cli.main sft" >/dev/null 2>&1 || true
 pkill -f "swift/cli/export.py" >/dev/null 2>&1 || true
 pkill -f "swift.cli.main export" >/dev/null 2>&1 || true
 

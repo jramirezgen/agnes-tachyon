@@ -364,6 +364,296 @@ TOPICS: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "Cosmología y Astrofísica": {
+        "wiki_pages": [
+            "Big Bang",
+            "Dark matter",
+            "Dark energy",
+            "Black hole",
+            "Stellar evolution",
+        ],
+        "curated": [
+            {
+                "instruction": "Explica el modelo cosmológico estándar ΛCDM",
+                "output": (
+                    "El modelo ΛCDM (Lambda-Cold Dark Matter) es el modelo estándar de cosmología:\n"
+                    "- Λ (Lambda): constante cosmológica = energía oscura, ~68% del universo\n"
+                    "- CDM: materia oscura fría = ~27% del universo\n"
+                    "- Materia bariónica (visible): ~5%\n\n"
+                    "El universo se originó hace ~13.8 Ga en el Big Bang y se expande aceleradamente. "
+                    "La expansión sigue la ecuación de Friedmann: (ȧ/a)² = 8πGρ/3 - kc²/a² + Λc²/3, "
+                    "donde a(t) es el factor de escala. "
+                    "La energía oscura actúa como presión negativa (p = -ρc²), causando expansión acelerada. "
+                    "La materia oscura no interactúa electromagnéticamente pero sí gravitacionalmente; "
+                    "forma el andamiaje gravitacional de la estructura a gran escala del universo."
+                ),
+            },
+            {
+                "instruction": "Describe la termodinámica y la física de los agujeros negros",
+                "output": (
+                    "Los agujeros negros son regiones donde el escape gravitacional supera c. "
+                    "El radio de Schwarzschild: rs = 2GM/c².\n\n"
+                    "Termodinámica de agujeros negros (Bekenstein-Hawking):\n"
+                    "- Temperatura de Hawking: T_H = ℏc³/(8πGMkB)\n"
+                    "- Entropía: S = kB·A/(4l_P²), donde A es el área del horizonte y l_P = √(ℏG/c³) es la longitud de Planck\n"
+                    "- Primera ley: dM = T_H·dS + ΩdJ + ΦdQ\n\n"
+                    "Un agujero negro de masa M irradia como cuerpo negro a T_H y se evapora en tiempo "
+                    "t_evap ∝ M³. Para el Sol: T_H ~ 10⁻⁷ K y t_evap ~ 10⁶⁶ años. "
+                    "La paradoja de la información (Hawking) cuestiona si la información cae al singularity o se codifica en la radiación."
+                ),
+            },
+        ],
+    },
+    "Mecánica Estadística y Fenómenos Críticos": {
+        "wiki_pages": [
+            "Statistical mechanics",
+            "Partition function (statistical mechanics)",
+            "Phase transition",
+            "Ising model",
+            "Renormalization group",
+        ],
+        "curated": [
+            {
+                "instruction": "Explica la función de partición y su rol en la mecánica estadística",
+                "output": (
+                    "La función de partición Z resume completamente el comportamiento termodinámico de un sistema:\n"
+                    "Z = Σᵢ e^(-βEᵢ)  donde β = 1/(kB·T)\n\n"
+                    "De Z se derivan todas las cantidades termodinámicas:\n"
+                    "- Energía libre de Helmholtz: F = -kBT·ln(Z)\n"
+                    "- Energía interna: U = -∂ln(Z)/∂β\n"
+                    "- Entropía: S = kB(ln(Z) + βU)\n"
+                    "- Presión: p = kBT·∂ln(Z)/∂V\n"
+                    "- Calor específico: CV = kBβ²·∂²ln(Z)/∂β²\n\n"
+                    "Para un gas ideal monoatómico: Z = (V/λ_th³)^N/N!, donde λ_th = h/√(2πmkBT) "
+                    "es la longitud de onda térmica de de Broglie. La mecánica estadística cuántica "
+                    "distingue bosones (Bose-Einstein) de fermiones (Fermi-Dirac)."
+                ),
+            },
+            {
+                "instruction": "¿Qué son las transiciones de fase y el grupo de renormalización?",
+                "output": (
+                    "Las transiciones de fase ocurren cuando los parámetros del sistema cruzan valores críticos.\n"
+                    "Cerca del punto crítico (Tc), las propiedades escalan como potencias:\n"
+                    "- ξ ~ |T-Tc|^(-ν) (longitud de correlación diverge)\n"
+                    "- CV ~ |T-Tc|^(-α)\n"
+                    "- m ~ |T-Tc|^β (parámetro de orden)\n"
+                    "- χ ~ |T-Tc|^(-γ) (susceptibilidad)\n\n"
+                    "Los exponentes críticos son universales — independientes de los detalles microscópicos. "
+                    "El grupo de renormalización (Wilson, 1971-1982, Nobel 1982) explica esta universalidad: "
+                    "a diferentes escalas espaciales, el sistema fluye hacia puntos fijos en el espacio "
+                    "de parámetros. Solo los grados de libertad de largo alcance importan en el punto crítico."
+                ),
+            },
+        ],
+    },
+    "Teoría Cuántica de Campos": {
+        "wiki_pages": [
+            "Quantum field theory",
+            "Feynman diagram",
+            "Renormalization",
+            "Path integral formulation",
+            "Gauge theory",
+        ],
+        "curated": [
+            {
+                "instruction": "¿Qué es la formulación de integral de camino de Feynman?",
+                "output": (
+                    "La formulación de integral de camino (Feynman, 1948) reformula la mecánica cuántica:\n"
+                    "La amplitud de probabilidad de ir de x_i a x_f es la suma sobre TODOS los caminos posibles:\n"
+                    "⟨x_f|e^(-iHt/ℏ)|x_i⟩ = ∫𝒟[x(t)] · e^(iS[x]/ℏ)\n"
+                    "donde S[x] = ∫dt L(x,ẋ) es la acción y la integral es sobre todas las trayectorias.\n\n"
+                    "En el límite clásico (ℏ→0), las contribuciones de caminos lejanos al camino clásico "
+                    "se cancelan por interferencia, recuperando la mecánica clásica (principio de mínima acción).\n\n"
+                    "En TQC, la integral de camino genera todas las amplitudes de Feynman: "
+                    "Z = ∫𝒟[φ] · e^(iS[φ]/ℏ), donde φ(x,t) son los campos cuánticos."
+                ),
+            },
+            {
+                "instruction": "Explica el concepto de renormalización en teoría cuántica de campos",
+                "output": (
+                    "En TQC, los cálculos perturbativos producen divergencias (integrales que van al infinito) "
+                    "en bucles de Feynman. La renormalización es el procedimiento para extraer predicciones finitas.\n\n"
+                    "Pasos de renormalización:\n"
+                    "1. Regularización: introducir un cutoff UV Λ o usar dimensiones D=4-ε (Dim. Reg.)\n"
+                    "2. Absorber divergencias en redefiniciones de los parámetros (masa, carga, campo)\n"
+                    "3. Fijar condiciones de renormalización a escala μ\n\n"
+                    "La ecuación del grupo de renormalización (Callan-Symanzik):\n"
+                    "[μ∂/∂μ + β(g)∂/∂g + γ(g)]G^(n) = 0\n"
+                    "describe cómo las constantes de acoplamiento varían con la escala energética. "
+                    "El correr de acoplamiento (running coupling) explica la libertad asintótica en QCD: "
+                    "los quarks interactúan débilmente a alta energía (αs→0 cuando Q→∞)."
+                ),
+            },
+        ],
+    },
+    "Teoría de la Información y Computación": {
+        "wiki_pages": [
+            "Information theory",
+            "Shannon entropy",
+            "Quantum information",
+            "Quantum computing",
+            "Kolmogorov complexity",
+        ],
+        "curated": [
+            {
+                "instruction": "Explica la entropía de Shannon y su relación con la física",
+                "output": (
+                    "La entropía de Shannon (Claude Shannon, 1948) mide la información de una fuente:\n"
+                    "H(X) = -Σᵢ pᵢ log₂(pᵢ)  [bits]\n\n"
+                    "Propiedades:\n"
+                    "- H es máxima cuando la distribución es uniforme (máxima incertidumbre)\n"
+                    "- H = 0 cuando un evento tiene probabilidad 1 (cero incertidumbre)\n"
+                    "- H es concava: la mezcla no reduce información\n\n"
+                    "Conexión con física: H = -(1/ln2)·S_Boltzmann/kB cuando pᵢ = e^(-βEᵢ)/Z. "
+                    "El principio de Landauer establece que borrar 1 bit genera al menos kBT·ln2 de calor. "
+                    "La información cuántica generaliza: entropía de von Neumann S(ρ) = -Tr(ρ log ρ), "
+                    "donde ρ es la matriz densidad del estado cuántico."
+                ),
+            },
+            {
+                "instruction": "¿Qué es la computación cuántica y cuáles son sus ventajas sobre la clásica?",
+                "output": (
+                    "La computación cuántica usa qubits |ψ⟩ = α|0⟩ + β|1⟩ (superposición) en lugar de bits clásicos.\n\n"
+                    "Ventajas cuánticas clave:\n"
+                    "- Algoritmo de Shor (1994): factorización en tiempo O(log³N) vs. exponencial clásico\n"
+                    "- Algoritmo de Grover (1996): búsqueda en O(√N) vs. O(N) clásico\n"
+                    "- Simulación cuántica: simular sistemas cuánticos exponencialmente más eficiente\n\n"
+                    "El entrelazamiento cuántico: |ψ⟩ = (|00⟩+|11⟩)/√2 (estado de Bell) es un recurso "
+                    "sin análogo clásico. La decoherencia — interacción del qubit con el entorno — "
+                    "destruye la superposición (tiempo de coherencia T₂). La corrección de errores cuánticos "
+                    "requiere O(1000) qubits físicos por qubit lógico para tolerancia a fallos."
+                ),
+            },
+        ],
+    },
+    "Química Cuántica y Materia Condensada": {
+        "wiki_pages": [
+            "Density functional theory",
+            "Superconductivity",
+            "Chemical bond",
+            "Molecular orbital theory",
+            "Band theory",
+        ],
+        "curated": [
+            {
+                "instruction": "Explica la teoría de funcional de densidad (DFT)",
+                "output": (
+                    "La DFT (Hohenberg-Kohn 1964, Kohn-Sham 1965) reformula el problema de N electrones "
+                    "en términos de la densidad electrónica ρ(r⃗):\n\n"
+                    "Teorema de Hohenberg-Kohn: la energía del estado fundamental es un funcional único "
+                    "de la densidad electrónica: E[ρ] = T[ρ] + V_ext[ρ] + V_Hartree[ρ] + E_xc[ρ]\n\n"
+                    "Las ecuaciones de Kohn-Sham:\n"
+                    "[-ℏ²/(2m)∇² + V_eff(r⃗)]φᵢ(r⃗) = εᵢφᵢ(r⃗)\n"
+                    "donde V_eff = V_ext + V_Hartree + V_xc es el potencial efectivo de un electron.\n\n"
+                    "DFT reduce el problema de 3N dimensiones (N electrones) a 3 dimensiones (densidad). "
+                    "Es el método dominante en química computacional y ciencia de materiales, "
+                    "calculando geometrías moleculares, espectros vibracionales, y propiedades electrónicas."
+                ),
+            },
+            {
+                "instruction": "Explica la superconductividad y la teoría BCS",
+                "output": (
+                    "La superconductividad (Kamerlingh Onnes, 1911) ocurre cuando la resistividad eléctrica "
+                    "cae exactamente a cero bajo temperatura crítica Tc.\n\n"
+                    "Teoría BCS (Bardeen-Cooper-Schrieffer, 1957, Nobel 1972):\n"
+                    "- Los electrones se emparejan en Pares de Cooper mediante fononos (vibración de red)\n"
+                    "- El par Cooper tiene spin total 0 (bosón) y condensa en un estado coherente de muchos cuerpos\n"
+                    "- Gap de energía: Δ ~ 2ℏωD·e^(-1/N(0)V)\n"
+                    "- Efecto Meissner: expulsión perfecta del campo magnético B⃗ = 0 dentro del superconductor\n"
+                    "- Temperatura crítica: kBTc ≈ 1.13ℏωD·e^(-1/N(0)V)\n\n"
+                    "Los superconductores de alta temperatura (cuprates, HgBa₂CuO₄, Tc~133K) "
+                    "no se explican completamente por BCS — son un problema abierto de materia condensada."
+                ),
+            },
+        ],
+    },
+    "Biofísica y Sistemas Complejos": {
+        "wiki_pages": [
+            "Biophysics",
+            "DNA replication",
+            "Protein folding",
+            "Complex system",
+            "Emergence",
+        ],
+        "curated": [
+            {
+                "instruction": "Explica el problema del plegamiento de proteínas y sus principios físicos",
+                "output": (
+                    "Las proteínas son cadenas de aminoácidos que se pliegan espontáneamente a su "
+                    "estructura nativa en microsegundos a segundos. La paradoja de Levinthal:\n"
+                    "Si una proteína de 100 aminoácidos probara todas las conformaciones posibles a "
+                    "10¹³ conf/s, tardaría 10²⁷ años — más que la edad del universo.\n\n"
+                    "Solución: el embudo de plegamiento energético (Wolynes, Dill):\n"
+                    "- El paisaje energético tiene forma de embudo hacia el estado nativo (mínimo global)\n"
+                    "- La energía libre G = H - TS equilibra estabilidad y entropía conformacional\n"
+                    "- Fuerzas dominantes: efecto hidrofóbico, puentes de hidrógeno, interacciones van der Waals\n\n"
+                    "AlphaFold2 (DeepMind, 2021) predice estructuras con precisión atómica usando "
+                    "atención multi-cabeza sobre evolutionary couplings — revolucionando la biología estructural."
+                ),
+            },
+            {
+                "instruction": "¿Qué son los sistemas complejos y la emergencia?",
+                "output": (
+                    "Los sistemas complejos presentan comportamiento colectivo que no puede predecirse "
+                    "sumando las partes individuales (emergencia).\n\n"
+                    "Características:\n"
+                    "- Muchos agentes interactivos con retroalimentación no lineal\n"
+                    "- Auto-organización sin control centralizado\n"
+                    "- Propiedades emergentes (ej: temperatura emerge de velocidades moleculares)\n"
+                    "- Comportamiento crítico y transiciones de fase\n\n"
+                    "Ejemplos físico-biológicos:\n"
+                    "- Murmuración de estorninos (bandadas): reglas locales → comportamiento global\n"
+                    "- Sincronización de luciérnagas: osciladores acoplados → fase colectiva (Kuramoto)\n"
+                    "- Neuronas → conciencia: ~86×10⁹ neuronas con 10¹⁴ sinapsis generan cognición\n"
+                    "- Mercados financieros: agentes racionales → volatilidad en clusters (Mandelbrot)\n\n"
+                    "La ciencia de la complejidad usa herramientas como teoría de redes, autómatas celulares, "
+                    "y dinámica no lineal para entender estos fenómenos."
+                ),
+            },
+        ],
+    },
+    "Gravedad Cuántica y Física Teórica Avanzada": {
+        "wiki_pages": [
+            "Loop quantum gravity",
+            "String theory",
+            "AdS/CFT correspondence",
+            "Holographic principle",
+            "Planck length",
+        ],
+        "curated": [
+            {
+                "instruction": "Explica el principio holográfico y la correspondencia AdS/CFT",
+                "output": (
+                    "El principio holográfico (t'Hooft, Susskind, 1993-1995):\n"
+                    "Toda la información contenida en un volumen de espacio puede codificarse "
+                    "en su frontera bidimensional. Análogo al holograma: imagen 3D en placa 2D.\n\n"
+                    "Motivación: la entropía de un agujero negro S = A/(4l_P²) escala con el ÁREA, "
+                    "no el volumen — sugiere que la gravedad es fundamentalmente bidimensional.\n\n"
+                    "AdS/CFT (Maldacena, 1997): dualidad holográfica concreta:\n"
+                    "- Teoría de gravedad en espacio Anti-de Sitter (AdS) en D+1 dimensiones\n"
+                    "- ≡ Teoría conforme de campos (CFT) cuántica sin gravedad en D dimensiones (frontera)\n"
+                    "Aplicaciones: cálculo de viscosidad en plasma quark-gluón (QGP), "
+                    "sistemas de materia condensada fuertemente correlacionados, "
+                    "y la paradoja de la información de agujeros negros."
+                ),
+            },
+            {
+                "instruction": "¿Qué es la escala de Planck y por qué es fundamental?",
+                "output": (
+                    "La escala de Planck surge combinando las tres constantes fundamentales:\n"
+                    "G (gravedad), ℏ (cuántica), c (relatividad):\n\n"
+                    "- Longitud de Planck: l_P = √(ℏG/c³) ≈ 1.616×10⁻³⁵ m\n"
+                    "- Tiempo de Planck: t_P = √(ℏG/c⁵) ≈ 5.39×10⁻⁴⁴ s\n"
+                    "- Masa de Planck: m_P = √(ℏc/G) ≈ 2.18×10⁻⁸ kg ≈ 10¹⁹ GeV/c²\n"
+                    "- Temperatura de Planck: T_P = m_P·c²/kB ≈ 1.42×10³² K\n\n"
+                    "Por debajo de l_P, la noción clásica de espaciotiempo se rompe: "
+                    "las fluctuaciones cuánticas de la geometría (espuma cuántica) dominan. "
+                    "Una teoría completa de gravedad cuántica (quantum gravity) debe describir esta escala. "
+                    "Candidatos: Teoría de cuerdas, Gravedad cuántica de bucles (LQG), Causal Dynamical Triangulations."
+                ),
+            },
+        ],
+    },
 }
 
 TOPIC_ORDER = list(TOPICS.keys())

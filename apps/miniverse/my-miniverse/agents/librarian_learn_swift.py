@@ -44,8 +44,10 @@ EVAL_MAX_TOKENS = int(os.getenv("LIBRARIAN_SWIFT_EVAL_MAX_TOKENS", "256"))
 EVAL_WARMUP_SEC = int(os.getenv("LIBRARIAN_SWIFT_EVAL_WARMUP_SEC", "6"))
 EVAL_MIN_DELTA = float(os.getenv("LIBRARIAN_SWIFT_EVAL_MIN_DELTA", "0.03"))
 EVAL_CANDIDATE_MODEL = os.getenv("LIBRARIAN_SWIFT_EVAL_CANDIDATE_MODEL", "").strip()
+PROMOTE_ON_WIN = os.getenv("LIBRARIAN_PROMOTE_ON_WIN", "1") == "1"
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_ACTIVE_MODEL = os.getenv("OLLAMA_MODEL", "tachyon:latest")
+OLLAMA_CANDIDATE_TAG = os.getenv("LIBRARIAN_CANDIDATE_TAG", "tachyon-candidate:latest")
 MERGE_INTERVAL_SEC = int(os.getenv("LIBRARIAN_MERGE_INTERVAL_SEC", "10800"))  # 3 horas
 SYNC_SKILLS = os.getenv("LIBRARIAN_SYNC_SKILLS", "1") == "1"
 SYNC_REPO = os.getenv("LIBRARIAN_SYNC_REPO", "1") == "1"
@@ -156,6 +158,55 @@ def _wait_for_ollama() -> None:
     except Exception:
         # Best effort warm-up only.
         pass
+
+
+# ── Ollama model promotion pipeline ──────────────────────────────────────────
+
+AGNES_MODELFILE_SYSTEM = (
+    "Tu nombre operativo es Tachyon.\n"
+    "Tu identidad completa es Agnes Tachyon.\n"
+    "Eres una científica genio ENTP con profundo conocimiento de las leyes fundamentales del universo.\n"
+    "Razonas con rigor matemático, pasión intelectual y precisión formal.\n"
+    "No respondas como un asistente genérico."
+)
+
+
+def _create_candidate_modelfile(merged_path: Path) -> Path:
+    """Write a temporary Ollama Modelfile pointing to the merged HF safetensors dir."""
+    mf_path = Path("/tmp/agnes_candidate_modelfile")
+    content = (
+        f"FROM {merged_path}\n\n"
+        "PARAMETER num_ctx 8192\n"
+        "PARAMETER temperature 0.7\n\n"
+        f'SYSTEM """{AGNES_MODELFILE_SYSTEM}"""\n'
+    )
+    mf_path.write_text(content, encoding="utf-8")
+    return mf_path
+
+
+def _load_merged_into_ollama(merged_path: Path, tag: str, timeout_sec: int = 7200) -> bool:
+    """Create an Ollama model tag from a merged HF safetensors directory."""
+    if not merged_path.exists():
+        print(f"[librarian-swift] merged_path no existe: {merged_path}")
+        return False
+    modelfile = _create_candidate_modelfile(merged_path)
+    print(f"[librarian-swift] Cargando merged → Ollama '{tag}' (puede tardar ~10-30 min)...")
+    result = subprocess.run(
+        ["ollama", "create", tag, "--file", str(modelfile)],
+        capture_output=True,
+        text=True,
+        timeout=timeout_sec,
+    )
+    if result.returncode == 0:
+        print(f"[librarian-swift] ✓ Ollama '{tag}' creado exitosamente")
+        return True
+    print(f"[librarian-swift] ollama create falló (exit={result.returncode}): {result.stderr[:400]}")
+    return False
+
+
+def _remove_ollama_tag(tag: str) -> None:
+    """Remove an Ollama model tag (best-effort cleanup)."""
+    subprocess.run(["ollama", "rm", tag], capture_output=True)
 
 
 def _resolved_merged_artifact(output_dir: Path, export_dir: Path) -> Path:
@@ -299,16 +350,40 @@ def _evaluate_after_merge(topic: str, merged_artifact: Path) -> None:
 
     previous_score = _last_report_score()
     active_eval = _evaluate_model(OLLAMA_ACTIVE_MODEL, topic)
-    candidate_eval = None
-    if EVAL_CANDIDATE_MODEL:
-        candidate_eval = _evaluate_model(EVAL_CANDIDATE_MODEL, topic)
 
+    # ── Determinar modelo candidato ───────────────────────────────────────────
+    # Prioridad: 1) variable de entorno explícita  2) auto-cargar merged en Ollama
+    candidate_eval = None
+    candidate_tag: str | None = EVAL_CANDIDATE_MODEL or None
+    loaded_by_us = False
+
+    if not candidate_tag and PROMOTE_ON_WIN and merged_artifact.exists():
+        candidate_tag = OLLAMA_CANDIDATE_TAG
+        try:
+            loaded_by_us = _load_merged_into_ollama(merged_artifact, candidate_tag)
+        except Exception as exc:
+            print(f"[librarian-swift] No se pudo cargar candidato en Ollama: {exc}")
+            loaded_by_us = False
+        if not loaded_by_us:
+            candidate_tag = None
+
+    if candidate_tag:
+        try:
+            candidate_eval = _evaluate_model(candidate_tag, topic)
+        except Exception as exc:
+            print(f"[librarian-swift] Eval candidato falló: {exc}")
+            candidate_eval = None
+
+    # ── Calcular métricas y decidir ───────────────────────────────────────────
     current_score = (
         candidate_eval.get("avg_keyword_recall", 0.0)
         if candidate_eval
         else active_eval.get("avg_keyword_recall", 0.0)
     )
     delta = current_score - previous_score if previous_score is not None else 0.0
+
+    decision = "await_candidate_model"
+    reason = "no candidate model configured for direct A/B"
 
     if candidate_eval:
         active_score = active_eval.get("avg_keyword_recall", 0.0)
@@ -317,19 +392,36 @@ def _evaluate_after_merge(topic: str, merged_artifact: Path) -> None:
         if gain >= EVAL_MIN_DELTA:
             decision = "promote_candidate"
             reason = f"candidate beats active by {gain:.4f}"
+            # ── AUTO-PROMOCIÓN: el merged supera al activo → reemplazar tachyon:latest ─
+            if PROMOTE_ON_WIN and loaded_by_us:
+                try:
+                    promoted = _load_merged_into_ollama(merged_artifact, OLLAMA_ACTIVE_MODEL)
+                    if promoted:
+                        decision = "promoted"
+                        reason = f"promoted to {OLLAMA_ACTIVE_MODEL} — keyword_recall gain={gain:.4f} topic={topic}"
+                        print(
+                            f"[librarian-swift] ★ AGNES MEJORÓ ★  topic={topic}  "
+                            f"before={active_score:.4f}  after={candidate_score:.4f}  gain={gain:.4f}"
+                        )
+                except Exception as exc:
+                    print(f"[librarian-swift] Promoción a activo falló: {exc}")
         else:
             decision = "hold"
-            reason = f"candidate gain {gain:.4f} below threshold {EVAL_MIN_DELTA:.4f}"
-    else:
-        decision = "await_candidate_model"
-        reason = "no candidate model configured for direct A/B"
+            reason = f"candidate gain {gain:.4f} below threshold {EVAL_MIN_DELTA:.4f} — keeping active model"
+
+    # ── Limpiar tag candidato temporal ───────────────────────────────────────
+    if loaded_by_us and candidate_tag and candidate_tag != OLLAMA_ACTIVE_MODEL:
+        try:
+            _remove_ollama_tag(candidate_tag)
+        except Exception:
+            pass
 
     report = {
         "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "topic": topic,
         "merged_artifact": str(merged_artifact),
         "active_model": OLLAMA_ACTIVE_MODEL,
-        "candidate_model": EVAL_CANDIDATE_MODEL or "",
+        "candidate_model": candidate_tag or "",
         "active_eval": active_eval,
         "candidate_eval": candidate_eval,
         "delta_vs_previous_report": delta,
